@@ -48,20 +48,14 @@ class PatchedChatDeepSeek(ChatDeepSeek):
         # Iterate through both and match by position
         if len(payload_messages) == len(original_messages):
             for payload_msg, orig_msg in zip(payload_messages, original_messages):
-                if (
-                    payload_msg.get("role") == "assistant"
-                    and isinstance(orig_msg, AIMessage)
-                ):
+                if payload_msg.get("role") == "assistant" and isinstance(orig_msg, AIMessage):
                     reasoning_content = orig_msg.additional_kwargs.get("reasoning_content")
                     if reasoning_content is not None:
                         payload_msg["reasoning_content"] = reasoning_content
         else:
             # Fallback: match by counting assistant messages
             ai_messages = [m for m in original_messages if isinstance(m, AIMessage)]
-            assistant_payloads = [
-                (i, m) for i, m in enumerate(payload_messages)
-                if m.get("role") == "assistant"
-            ]
+            assistant_payloads = [(i, m) for i, m in enumerate(payload_messages) if m.get("role") == "assistant"]
 
             for (idx, payload_msg), ai_msg in zip(assistant_payloads, ai_messages):
                 reasoning_content = ai_msg.additional_kwargs.get("reasoning_content")

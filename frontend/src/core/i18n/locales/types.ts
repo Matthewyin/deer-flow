@@ -101,6 +101,8 @@ export interface Translations {
     needYourHelp: string;
     useTool: (toolName: string) => string;
     searchForRelatedInfo: string;
+    searchForRelatedImages: string;
+    searchForRelatedImagesFor: (query: string) => string;
     searchOnWebFor: (query: string) => string;
     viewWebPage: string;
     listFolder: string;

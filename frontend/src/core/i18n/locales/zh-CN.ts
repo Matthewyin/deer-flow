@@ -104,6 +104,8 @@ export const zhCN: Translations = {
     needYourHelp: "需要你的协助",
     useTool: (toolName: string) => `使用 “${toolName}” 工具`,
     searchForRelatedInfo: "搜索相关信息",
+    searchForRelatedImages: "搜索相关图片",
+    searchForRelatedImagesFor: (query: string) => `搜索相关图片 “${query}”`,
     searchOnWebFor: (query: string) => `在网络上搜索 “${query}”`,
     viewWebPage: "查看网页",
     listFolder: "列出文件夹",

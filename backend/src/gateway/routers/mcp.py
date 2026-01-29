@@ -71,9 +71,7 @@ async def get_mcp_configuration() -> McpConfigResponse:
     """
     config = get_extensions_config()
 
-    return McpConfigResponse(
-        mcp_servers={name: McpServerConfigResponse(**server.model_dump()) for name, server in config.mcp_servers.items()}
-    )
+    return McpConfigResponse(mcp_servers={name: McpServerConfigResponse(**server.model_dump()) for name, server in config.mcp_servers.items()})
 
 
 @router.put(
@@ -143,9 +141,7 @@ async def update_mcp_configuration(request: McpConfigUpdateRequest) -> McpConfig
 
         # Reload the configuration and update the global cache
         reloaded_config = reload_extensions_config()
-        return McpConfigResponse(
-            mcp_servers={name: McpServerConfigResponse(**server.model_dump()) for name, server in reloaded_config.mcp_servers.items()}
-        )
+        return McpConfigResponse(mcp_servers={name: McpServerConfigResponse(**server.model_dump()) for name, server in reloaded_config.mcp_servers.items()})
 
     except Exception as e:
         logger.error(f"Failed to update MCP configuration: {e}", exc_info=True)

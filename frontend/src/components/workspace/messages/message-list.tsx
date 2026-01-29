@@ -53,6 +53,17 @@ export function MessageList({
               />
             );
           }
+          if (group.type === "assistant:clarification") {
+            const message = group.messages[0];
+            if (message && hasContent(message)) {
+              return (
+                <MessageResponse key={group.id} rehypePlugins={rehypePlugins}>
+                  {extractContentFromMessage(message)}
+                </MessageResponse>
+              );
+            }
+            return null;
+          }
           if (group.type === "assistant:present-files") {
             const files: string[] = [];
             for (const message of group.messages) {

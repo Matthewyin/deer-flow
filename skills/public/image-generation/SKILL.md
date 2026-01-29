@@ -158,6 +158,26 @@ After generation:
 - Provide brief description of the generation result
 - Offer to iterate if adjustments needed
 
+## Tips: Enhancing Generation with Reference Images
+
+For scenarios where visual accuracy is critical, **use the `image_search` tool first** to find reference images before generation.
+
+**Recommended scenarios for using image_search tool:**
+- **Character/Portrait Generation**: Search for similar poses, expressions, or styles to guide facial features and body proportions
+- **Specific Objects or Products**: Find reference images of real objects to ensure accurate representation
+- **Architectural or Environmental Scenes**: Search for location references to capture authentic details
+- **Fashion and Clothing**: Find style references to ensure accurate garment details and styling
+
+**Example workflow:**
+1. Call the `image_search` tool to find suitable reference images:
+   ```
+   image_search(query="Japanese woman street photography 1990s", size="Large")
+   ```
+2. Download the returned image URLs to local files
+3. Use the downloaded images as `--reference-images` parameter in the generation script
+
+This approach significantly improves generation quality by providing the model with concrete visual guidance rather than relying solely on text descriptions.
+
 ## Notes
 
 - Always use English for prompts regardless of user's language

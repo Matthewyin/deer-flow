@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 
 import { useArtifacts } from "../artifacts";
 import { FlipDisplay } from "../flip-display";
+import { Tooltip } from "../tooltip";
 
 export function MessageGroup({
   className,
@@ -213,6 +214,48 @@ function ToolCall({
                 </a>
               </ChainOfThoughtSearchResult>
             ))}
+          </ChainOfThoughtSearchResults>
+        )}
+      </ChainOfThoughtStep>
+    );
+  } else if (name === "image_search") {
+    let label: React.ReactNode = t.toolCalls.searchForRelatedImages;
+    if (typeof args.query === "string") {
+      label = t.toolCalls.searchForRelatedImagesFor(args.query);
+    }
+    const results = (
+      result as {
+        results: {
+          source_url: string;
+          thumbnail_url: string;
+          image_url: string;
+          title: string;
+        }[];
+      }
+    )?.results;
+    return (
+      <ChainOfThoughtStep key={id} label={label} icon={SearchIcon}>
+        {Array.isArray(results) && (
+          <ChainOfThoughtSearchResults>
+            {Array.isArray(results) &&
+              results.map((item) => (
+                <Tooltip key={item.image_url} content={item.title}>
+                  <a
+                    className="size-24 overflow-hidden rounded-lg object-cover"
+                    href={item.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      className="size-24 object-cover"
+                      src={item.thumbnail_url}
+                      alt={item.title}
+                      width={100}
+                      height={100}
+                    />
+                  </a>
+                </Tooltip>
+              ))}
           </ChainOfThoughtSearchResults>
         )}
       </ChainOfThoughtStep>

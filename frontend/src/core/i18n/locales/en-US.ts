@@ -106,6 +106,9 @@ export const enUS: Translations = {
     needYourHelp: "Need your help",
     useTool: (toolName: string) => `Use "${toolName}" tool`,
     searchForRelatedInfo: "Search for related information",
+    searchForRelatedImages: "Search for related images",
+    searchForRelatedImagesFor: (query: string) =>
+      `Search for related images for "${query}"`,
     searchOnWebFor: (query: string) => `Search on the web for "${query}"`,
     viewWebPage: "View web page",
     listFolder: "List folder",

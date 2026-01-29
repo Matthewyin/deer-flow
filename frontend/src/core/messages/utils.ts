@@ -14,11 +14,14 @@ interface AssistantMessageGroup extends GenericMessageGroup<"assistant"> {}
 
 interface AssistantPresentFilesGroup extends GenericMessageGroup<"assistant:present-files"> {}
 
+interface AssistantClarificationGroup extends GenericMessageGroup<"assistant:clarification"> {}
+
 type MessageGroup =
   | HumanMessageGroup
   | AssistantProcessingGroup
   | AssistantMessageGroup
-  | AssistantPresentFilesGroup;
+  | AssistantPresentFilesGroup
+  | AssistantClarificationGroup;
 
 export function groupMessages<T>(
   messages: Message[],
@@ -38,10 +41,28 @@ export function groupMessages<T>(
         messages: [message],
       });
     } else if (message.type === "tool") {
-      if (
+      // Check if this is a clarification tool message
+      if (isClarificationToolMessage(message)) {
+        // Add to processing group if available (to maintain tool call association)
+        if (
+          lastGroup &&
+          lastGroup.type !== "human" &&
+          lastGroup.type !== "assistant" &&
+          lastGroup.type !== "assistant:clarification"
+        ) {
+          lastGroup.messages.push(message);
+        }
+        // Also create a separate clarification group for prominent display
+        groups.push({
+          id: message.id,
+          type: "assistant:clarification",
+          messages: [message],
+        });
+      } else if (
         lastGroup &&
         lastGroup.type !== "human" &&
-        lastGroup.type !== "assistant"
+        lastGroup.type !== "assistant" &&
+        lastGroup.type !== "assistant:clarification"
       ) {
         lastGroup.messages.push(message);
       } else {
@@ -186,8 +207,13 @@ export function hasToolCalls(message: Message) {
 
 export function hasPresentFiles(message: Message) {
   return (
-    message.type === "ai" && message.tool_calls?.[0]?.name === "present_files"
+    message.type === "ai" &&
+    message.tool_calls?.some((toolCall) => toolCall.name === "present_files")
   );
+}
+
+export function isClarificationToolMessage(message: Message) {
+  return message.type === "tool" && message.name === "ask_clarification";
 }
 
 export function extractPresentFilesFromMessage(message: Message) {

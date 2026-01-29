@@ -55,8 +55,7 @@ class SandboxConfig(BaseModel):
     )
     environment: dict[str, str] = Field(
         default_factory=dict,
-        description="Environment variables to inject into the sandbox container. "
-        "Values starting with $ will be resolved from host environment variables.",
+        description="Environment variables to inject into the sandbox container. Values starting with $ will be resolved from host environment variables.",
     )
 
     model_config = ConfigDict(extra="allow")
