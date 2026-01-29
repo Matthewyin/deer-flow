@@ -62,10 +62,22 @@ export function InputBox({
   assistantId?: string | null;
   status?: ChatStatus;
   disabled?: boolean;
-  context: Omit<AgentThreadContext, "thread_id">;
+  context: Omit<
+    AgentThreadContext,
+    "thread_id" | "is_plan_mode" | "thinking_enabled"
+  > & {
+    mode: "flash" | "thinking" | "pro" | undefined;
+  };
   extraHeader?: React.ReactNode;
   isNewThread?: boolean;
-  onContextChange?: (context: Omit<AgentThreadContext, "thread_id">) => void;
+  onContextChange?: (
+    context: Omit<
+      AgentThreadContext,
+      "thread_id" | "is_plan_mode" | "thinking_enabled"
+    > & {
+      mode: "flash" | "thinking" | "pro" | undefined;
+    },
+  ) => void;
   onSubmit?: (message: PromptInputMessage) => void;
   onStop?: () => void;
 }) {
@@ -74,13 +86,15 @@ export function InputBox({
   const { models } = useModels();
   const selectedModel = useMemo(() => {
     if (!context.model_name && models.length > 0) {
+      const model = models[0]!;
       setTimeout(() => {
         onContextChange?.({
           ...context,
-          model_name: models[0]!.name,
+          model_name: model.name,
+          mode: model.supports_thinking ? "pro" : "flash",
         });
       }, 0);
-      return models[0]!;
+      return model;
     }
     return models.find((m) => m.name === context.model_name);
   }, [context, models, onContextChange]);
@@ -88,48 +102,22 @@ export function InputBox({
     () => selectedModel?.supports_thinking ?? false,
     [selectedModel],
   );
-  const mode = useMemo(() => {
-    if (context.is_plan_mode) {
-      return "pro";
-    }
-    if (context.thinking_enabled) {
-      return "thinking";
-    }
-    return "flash";
-  }, [context.thinking_enabled, context.is_plan_mode]);
   const handleModelSelect = useCallback(
     (model_name: string) => {
-      const supports_thinking = selectedModel?.supports_thinking ?? false;
       onContextChange?.({
         ...context,
         model_name,
-        thinking_enabled: supports_thinking && context.thinking_enabled,
       });
       setModelDialogOpen(false);
     },
-    [selectedModel?.supports_thinking, onContextChange, context],
+    [onContextChange, context],
   );
   const handleModeSelect = useCallback(
     (mode: "flash" | "thinking" | "pro") => {
-      if (mode === "flash") {
-        onContextChange?.({
-          ...context,
-          thinking_enabled: false,
-          is_plan_mode: false,
-        });
-      } else if (mode === "thinking") {
-        onContextChange?.({
-          ...context,
-          thinking_enabled: true,
-          is_plan_mode: false,
-        });
-      } else if (mode === "pro") {
-        onContextChange?.({
-          ...context,
-          thinking_enabled: true,
-          is_plan_mode: true,
-        });
-      }
+      onContextChange?.({
+        ...context,
+        mode,
+      });
     },
     [onContextChange, context],
   );
@@ -192,7 +180,7 @@ export function InputBox({
                 <PromptInputActionMenu>
                   <PromptInputActionMenuItem
                     className={cn(
-                      mode === "flash"
+                      context.mode === "flash"
                         ? "text-accent-foreground"
                         : "text-muted-foreground/65",
                     )}
@@ -203,7 +191,8 @@ export function InputBox({
                         <ZapIcon
                           className={cn(
                             "mr-2 size-4",
-                            mode === "flash" && "text-accent-foreground",
+                            context.mode === "flash" &&
+                              "text-accent-foreground",
                           )}
                         />
                         {t.inputBox.flashMode}
@@ -212,7 +201,7 @@ export function InputBox({
                         {t.inputBox.flashModeDescription}
                       </div>
                     </div>
-                    {mode === "flash" ? (
+                    {context.mode === "flash" ? (
                       <CheckIcon className="ml-auto size-4" />
                     ) : (
                       <div className="ml-auto size-4" />
@@ -221,7 +210,7 @@ export function InputBox({
                   {supportThinking && (
                     <PromptInputActionMenuItem
                       className={cn(
-                        mode === "thinking"
+                        context.mode === "thinking"
                           ? "text-accent-foreground"
                           : "text-muted-foreground/65",
                       )}
@@ -232,7 +221,8 @@ export function InputBox({
                           <LightbulbIcon
                             className={cn(
                               "mr-2 size-4",
-                              mode === "thinking" && "text-accent-foreground",
+                              context.mode === "thinking" &&
+                                "text-accent-foreground",
                             )}
                           />
                           {t.inputBox.reasoningMode}
@@ -241,7 +231,7 @@ export function InputBox({
                           {t.inputBox.reasoningModeDescription}
                         </div>
                       </div>
-                      {mode === "thinking" ? (
+                      {context.mode === "thinking" ? (
                         <CheckIcon className="ml-auto size-4" />
                       ) : (
                         <div className="ml-auto size-4" />
@@ -250,7 +240,7 @@ export function InputBox({
                   )}
                   <PromptInputActionMenuItem
                     className={cn(
-                      mode === "pro"
+                      context.mode === "pro"
                         ? "text-accent-foreground"
                         : "text-muted-foreground/65",
                     )}
@@ -261,7 +251,7 @@ export function InputBox({
                         <GraduationCapIcon
                           className={cn(
                             "mr-2 size-4",
-                            mode === "pro" && "text-accent-foreground",
+                            context.mode === "pro" && "text-accent-foreground",
                           )}
                         />
                         {t.inputBox.proMode}
@@ -270,7 +260,7 @@ export function InputBox({
                         {t.inputBox.proModeDescription}
                       </div>
                     </div>
-                    {mode === "pro" ? (
+                    {context.mode === "pro" ? (
                       <CheckIcon className="ml-auto size-4" />
                     ) : (
                       <div className="ml-auto size-4" />

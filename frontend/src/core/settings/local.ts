@@ -3,8 +3,7 @@ import type { AgentThreadContext } from "../threads";
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
   context: {
     model_name: undefined,
-    thinking_enabled: true,
-    is_plan_mode: true,
+    mode: undefined,
   },
   layout: {
     sidebar_collapsed: false,
@@ -14,7 +13,12 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
 const LOCAL_SETTINGS_KEY = "deerflow.local-settings";
 
 export interface LocalSettings {
-  context: Omit<AgentThreadContext, "thread_id">;
+  context: Omit<
+    AgentThreadContext,
+    "thread_id" | "is_plan_mode" | "thinking_enabled"
+  > & {
+    mode: "flash" | "thinking" | "pro" | undefined;
+  };
   layout: {
     sidebar_collapsed: boolean;
   };

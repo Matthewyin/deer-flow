@@ -108,7 +108,11 @@ export default function ChatPage() {
     isNewThread,
     threadId,
     thread,
-    threadContext: settings.context,
+    threadContext: {
+      ...settings.context,
+      thinking_enabled: settings.context.mode !== "flash",
+      is_plan_mode: settings.context.mode === "pro",
+    },
     afterSubmit() {
       router.push(pathOfThread(threadId!));
     },

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { Overscroll } from "@/components/workspace/overscroll";
 import { WorkspaceSidebar } from "@/components/workspace/workspace-sidebar";
 import { useLocalSettings } from "@/core/settings";
 
