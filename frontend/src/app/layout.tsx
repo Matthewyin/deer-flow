@@ -1,4 +1,5 @@
 import "@/styles/globals.css";
+import "katex/dist/katex.min.css";
 
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
