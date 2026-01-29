@@ -246,13 +246,15 @@ function ToolCall({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <img
-                      className="size-24 object-cover"
-                      src={item.thumbnail_url}
-                      alt={item.title}
-                      width={100}
-                      height={100}
-                    />
+                    <div className="bg-accent size-24">
+                      <img
+                        className="size-full object-cover"
+                        src={item.thumbnail_url}
+                        alt={item.title}
+                        width={100}
+                        height={100}
+                      />
+                    </div>
                   </a>
                 </Tooltip>
               ))}
