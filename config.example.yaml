@@ -69,7 +69,7 @@ models:
   #   api_key: $MOONSHOT_API_KEY
   #   max_tokens: 32768
   #   supports_thinking: true
-  #   supports_vision: false  # Check your specific model's capabilities
+  #   supports_vision: true  # Check your specific model's capabilities
   #   when_thinking_enabled:
   #     extra_body:
   #       thinking:
@@ -111,11 +111,6 @@ tools:
     group: web
     use: src.community.image_search.tools:image_search_tool
     max_results: 5
-
-  # View image tool (display local images to user)
-  - name: view_image
-    group: file:read
-    use: src.tools.builtins:view_image_tool
 
   # File operations tools
   - name: ls

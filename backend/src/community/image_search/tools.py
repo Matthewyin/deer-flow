@@ -46,7 +46,7 @@ def _search_images(
         logger.error("ddgs library not installed. Run: pip install ddgs")
         return []
 
-    ddgs = DDGS()
+    ddgs = DDGS(timeout=30)
 
     try:
         kwargs = {
@@ -119,12 +119,8 @@ def image_search_tool(
     normalized_results = [
         {
             "title": r.get("title", ""),
-            "image_url": r.get("image", ""),
+            "image_url": r.get("thumbnail", ""),
             "thumbnail_url": r.get("thumbnail", ""),
-            "source_url": r.get("url", ""),
-            "source": r.get("source", ""),
-            "width": r.get("width"),
-            "height": r.get("height"),
         }
         for r in results
     ]

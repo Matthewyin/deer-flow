@@ -230,7 +230,7 @@ def make_lead_agent(config: RunnableConfig):
     print(f"thinking_enabled: {thinking_enabled}, model_name: {model_name}, is_plan_mode: {is_plan_mode}")
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled),
-        tools=get_available_tools(),
+        tools=get_available_tools(model_name=model_name),
         middleware=_build_middlewares(config),
         system_prompt=apply_prompt_template(),
         state_schema=ThreadState,
