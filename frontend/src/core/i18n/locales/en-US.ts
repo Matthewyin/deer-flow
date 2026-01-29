@@ -11,6 +11,8 @@ export const enUS: Translations = {
     home: "Home",
     settings: "Settings",
     delete: "Delete",
+    rename: "Rename",
+    share: "Share",
     openInNewWindow: "Open in new window",
     close: "Close",
     more: "More",
@@ -24,6 +26,8 @@ export const enUS: Translations = {
     loading: "Loading...",
     code: "Code",
     preview: "Preview",
+    cancel: "Cancel",
+    save: "Save",
   },
 
   // Welcome
@@ -38,6 +42,7 @@ export const enUS: Translations = {
     copyToClipboard: "Copy to clipboard",
     copiedToClipboard: "Copied to clipboard",
     failedToCopyToClipboard: "Failed to copy to clipboard",
+    linkCopied: "Link copied to clipboard",
   },
 
   // Input Box

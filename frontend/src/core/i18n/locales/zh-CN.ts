@@ -11,6 +11,8 @@ export const zhCN: Translations = {
     home: "首页",
     settings: "设置",
     delete: "删除",
+    rename: "重命名",
+    share: "分享",
     openInNewWindow: "在新窗口打开",
     close: "关闭",
     more: "更多",
@@ -24,6 +26,8 @@ export const zhCN: Translations = {
     loading: "加载中...",
     code: "代码",
     preview: "预览",
+    cancel: "取消",
+    save: "保存",
   },
 
   // Welcome
@@ -38,6 +42,7 @@ export const zhCN: Translations = {
     copyToClipboard: "复制到剪贴板",
     copiedToClipboard: "已复制到剪贴板",
     failedToCopyToClipboard: "复制到剪贴板失败",
+    linkCopied: "链接已复制到剪贴板",
   },
 
   // Input Box

@@ -1,6 +1,7 @@
 import mimetypes
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
@@ -104,9 +105,12 @@ async def get_artifact(thread_id: str, path: str, request: Request) -> FileRespo
 
     mime_type, _ = mimetypes.guess_type(actual_path)
 
+    # Encode filename for Content-Disposition header (RFC 5987)
+    encoded_filename = quote(actual_path.name)
+    
     # if `download` query parameter is true, return the file as a download
     if request.query_params.get("download"):
-        return FileResponse(path=actual_path, filename=actual_path.name, media_type=mime_type, headers={"Content-Disposition": f'attachment; filename="{actual_path.name}"'})
+        return FileResponse(path=actual_path, filename=actual_path.name, media_type=mime_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"})
 
     if mime_type and mime_type == "text/html":
         return HTMLResponse(content=actual_path.read_text())
@@ -117,4 +121,4 @@ async def get_artifact(thread_id: str, path: str, request: Request) -> FileRespo
     if is_text_file_by_content(actual_path):
         return PlainTextResponse(content=actual_path.read_text(), media_type=mime_type)
 
-    return Response(content=actual_path.read_bytes(), media_type=mime_type, headers={"Content-Disposition": f'inline; filename="{actual_path.name}"'})
+    return Response(content=actual_path.read_bytes(), media_type=mime_type, headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}"})

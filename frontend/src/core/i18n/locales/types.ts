@@ -9,6 +9,8 @@ export interface Translations {
     home: string;
     settings: string;
     delete: string;
+    rename: string;
+    share: string;
     openInNewWindow: string;
     close: string;
     more: string;
@@ -22,6 +24,8 @@ export interface Translations {
     loading: string;
     code: string;
     preview: string;
+    cancel: string;
+    save: string;
   };
 
   // Welcome
@@ -35,6 +39,7 @@ export interface Translations {
     copyToClipboard: string;
     copiedToClipboard: string;
     failedToCopyToClipboard: string;
+    linkCopied: string;
   };
 
   // Input Box

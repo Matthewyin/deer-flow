@@ -73,6 +73,12 @@ export function useSubmitThread({
   const callback = useCallback(
     async (message: PromptInputMessage) => {
       const text = message.text.trim();
+      
+      console.log('[useSubmitThread] Submitting message:', { 
+        text, 
+        hasFiles: !!message.files?.length,
+        filesCount: message.files?.length || 0 
+      });
 
       // Upload files first if any
       if (message.files && message.files.length > 0) {
@@ -181,6 +187,46 @@ export function useDeleteThread() {
         },
         (oldData: Array<AgentThread>) => {
           return oldData.filter((t) => t.thread_id !== threadId);
+        },
+      );
+    },
+  });
+}
+
+export function useRenameThread() {
+  const queryClient = useQueryClient();
+  const apiClient = getAPIClient();
+  return useMutation({
+    mutationFn: async ({
+      threadId,
+      title,
+    }: {
+      threadId: string;
+      title: string;
+    }) => {
+      await apiClient.threads.update(threadId, {
+        metadata: { title },
+      });
+    },
+    onSuccess(_, { threadId, title }) {
+      queryClient.setQueriesData(
+        {
+          queryKey: ["threads", "search"],
+          exact: false,
+        },
+        (oldData: Array<AgentThread>) => {
+          return oldData.map((t) => {
+            if (t.thread_id === threadId) {
+              return {
+                ...t,
+                metadata: {
+                  ...t.metadata,
+                  title,
+                },
+              };
+            }
+            return t;
+          });
         },
       );
     },

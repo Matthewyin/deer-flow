@@ -243,3 +243,58 @@ export function findToolCallResult(toolCallId: string, messages: Message[]) {
   }
   return undefined;
 }
+
+/**
+ * Represents an uploaded file parsed from the <uploaded_files> tag
+ */
+export interface UploadedFile {
+  filename: string;
+  size: string;
+  path: string;
+}
+
+/**
+ * Result of parsing uploaded files from message content
+ */
+export interface ParsedUploadedFiles {
+  files: UploadedFile[];
+  cleanContent: string;
+}
+
+/**
+ * Parse <uploaded_files> tag from message content and extract file information.
+ * Returns the list of uploaded files and the content with the tag removed.
+ */
+export function parseUploadedFiles(content: string): ParsedUploadedFiles {
+  // Match <uploaded_files>...</uploaded_files> tag
+  const uploadedFilesRegex = /<uploaded_files>([\s\S]*?)<\/uploaded_files>/;
+  const match = content.match(uploadedFilesRegex);
+
+  if (!match) {
+    return { files: [], cleanContent: content };
+  }
+
+  const uploadedFilesContent = match[1];
+  const cleanContent = content.replace(uploadedFilesRegex, "").trim();
+
+  // Check if it's "No files have been uploaded yet."
+  if (uploadedFilesContent.includes("No files have been uploaded yet.")) {
+    return { files: [], cleanContent };
+  }
+
+  // Parse file list
+  // Format: - filename (size)\n  Path: /path/to/file
+  const fileRegex = /- ([^\n(]+)\s*\(([^)]+)\)\s*\n\s*Path:\s*([^\n]+)/g;
+  const files: UploadedFile[] = [];
+  let fileMatch;
+
+  while ((fileMatch = fileRegex.exec(uploadedFilesContent)) !== null) {
+    files.push({
+      filename: fileMatch[1].trim(),
+      size: fileMatch[2].trim(),
+      path: fileMatch[3].trim(),
+    });
+  }
+
+  return { files, cleanContent };
+}
