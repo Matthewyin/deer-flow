@@ -189,7 +189,20 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
 
         # Create files message and prepend to the last human message content
         files_message = self._create_files_message(files)
-        original_content = last_message.content if isinstance(last_message.content, str) else ""
+        
+        # Extract original content - handle both string and list formats
+        original_content = ""
+        if isinstance(last_message.content, str):
+            original_content = last_message.content
+        elif isinstance(last_message.content, list):
+            # Content is a list of content blocks (e.g., [{"type": "text", "text": "..."}])
+            text_parts = []
+            for block in last_message.content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+            original_content = "\n".join(text_parts)
+        
+        logger.info(f"Original message content: {original_content[:100] if original_content else '(empty)'}")
         
         # Create new message with combined content
         updated_message = HumanMessage(

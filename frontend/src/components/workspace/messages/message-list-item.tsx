@@ -115,6 +115,86 @@ function MessageContent_({
 
   const { thread_id } = useParams<{ thread_id: string }>();
 
+  // For human messages with uploaded files, render files outside the bubble
+  if (isHuman && uploadedFiles.length > 0) {
+    return (
+      <div className={cn("ml-auto flex flex-col gap-2", className)}>
+        {/* Uploaded files outside the message bubble */}
+        <UploadedFilesList files={uploadedFiles} threadId={thread_id} />
+        
+        {/* Message content inside the bubble (only if there's text) */}
+        {cleanContent && (
+          <AIElementMessageContent className="w-fit">
+            <AIElementMessageResponse
+              remarkPlugins={[[remarkMath, { singleDollarTextMath: true }]]}
+              rehypePlugins={[...rehypePlugins, [rehypeKatex, { output: "html" }]]}
+              components={{
+                a: ({
+                  href,
+                  children,
+                }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+                  if (!href) {
+                    return <span>{children}</span>;
+                  }
+
+                  // Check if this link matches a citation
+                  const citation = citationMap.get(href);
+                  if (citation) {
+                    return (
+                      <CitationLink citation={citation} href={href}>
+                        {children}
+                      </CitationLink>
+                    );
+                  }
+
+                  // Regular external link
+                  return (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline underline-offset-2 hover:no-underline"
+                    >
+                      {children}
+                    </a>
+                  );
+                },
+                img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+                  if (!src) return null;
+                  if (typeof src !== "string") {
+                    return (
+                      <img
+                        className="max-w-full overflow-hidden rounded-lg"
+                        src={src}
+                        alt={alt}
+                      />
+                    );
+                  }
+                  let url = src;
+                  if (src.startsWith("/mnt/")) {
+                    url = resolveArtifactURL(src, thread_id);
+                  }
+                  return (
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        className="max-w-full overflow-hidden rounded-lg"
+                        src={url}
+                        alt={alt}
+                      />
+                    </a>
+                  );
+                },
+              }}
+            >
+              {cleanContent}
+            </AIElementMessageResponse>
+          </AIElementMessageContent>
+        )}
+      </div>
+    );
+  }
+
+  // Default rendering for non-human messages or human messages without files
   return (
     <AIElementMessageContent className={className}>
       {/* Uploaded files for human messages - show first */}
@@ -287,7 +367,7 @@ function UploadedFileCard({
         href={imageUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="group relative block overflow-hidden rounded-lg border"
+        className="group relative block overflow-hidden rounded-lg border border-border/40"
       >
         <img
           src={imageUrl}
@@ -300,7 +380,7 @@ function UploadedFileCard({
 
   // For non-image files, show file card
   return (
-    <div className="bg-background flex min-w-[120px] max-w-[200px] flex-col gap-1 rounded-lg border p-3 shadow-sm">
+    <div className="bg-background flex min-w-[120px] max-w-[200px] flex-col gap-1 rounded-lg border border-border/40 p-3 shadow-sm">
       <div className="flex items-start gap-2">
         <FileIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
         <span

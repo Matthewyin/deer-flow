@@ -73,6 +73,12 @@ export function useSubmitThread({
   const callback = useCallback(
     async (message: PromptInputMessage) => {
       const text = message.text.trim();
+      
+      console.log('[useSubmitThread] Submitting message:', { 
+        text, 
+        hasFiles: !!message.files?.length,
+        filesCount: message.files?.length || 0 
+      });
 
       // Upload files first if any
       if (message.files && message.files.length > 0) {
