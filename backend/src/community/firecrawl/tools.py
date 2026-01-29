@@ -70,4 +70,4 @@ def web_fetch_tool(url: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
-    return f"# {title}\n\n{markdown_content}"
+    return f"# {title}\n\n{markdown_content[:4096]}"

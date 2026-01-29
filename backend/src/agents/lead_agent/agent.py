@@ -7,6 +7,7 @@ from src.agents.middlewares.clarification_middleware import ClarificationMiddlew
 from src.agents.middlewares.thread_data_middleware import ThreadDataMiddleware
 from src.agents.middlewares.title_middleware import TitleMiddleware
 from src.agents.middlewares.uploads_middleware import UploadsMiddleware
+from src.agents.middlewares.view_image_middleware import ViewImageMiddleware
 from src.agents.thread_state import ThreadState
 from src.config.summarization_config import get_summarization_config
 from src.models import create_chat_model
@@ -174,6 +175,7 @@ Being proactive with task management demonstrates thoroughness and ensures all r
 # UploadsMiddleware should be after ThreadDataMiddleware to access thread_id
 # SummarizationMiddleware should be early to reduce context before other processing
 # TodoListMiddleware should be before ClarificationMiddleware to allow todo management
+# ViewImageMiddleware should be before ClarificationMiddleware to inject image details before LLM
 # ClarificationMiddleware should be last to intercept clarification requests after model calls
 def _build_middlewares(config: RunnableConfig):
     """Build middleware chain based on runtime configuration.
@@ -197,7 +199,24 @@ def _build_middlewares(config: RunnableConfig):
     if todo_list_middleware is not None:
         middlewares.append(todo_list_middleware)
 
-    middlewares.extend([TitleMiddleware(), ClarificationMiddleware()])
+    # Add TitleMiddleware
+    middlewares.append(TitleMiddleware())
+
+    # Add ViewImageMiddleware only if the current model supports vision
+    model_name = config.get("configurable", {}).get("model_name") or config.get("configurable", {}).get("model")
+    from src.config import get_app_config
+
+    app_config = get_app_config()
+    # If no model_name specified, use the first model (default)
+    if model_name is None and app_config.models:
+        model_name = app_config.models[0].name
+
+    model_config = app_config.get_model_config(model_name) if model_name else None
+    if model_config is not None and model_config.supports_vision:
+        middlewares.append(ViewImageMiddleware())
+
+    # ClarificationMiddleware should always be last
+    middlewares.append(ClarificationMiddleware())
     return middlewares
 
 
