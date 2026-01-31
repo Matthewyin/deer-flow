@@ -50,7 +50,7 @@ export const enUS: Translations = {
   inputBox: {
     placeholder: "How can I assist you today?",
     createSkillPrompt:
-      "Let's create a skill together using your skill-creator skill. First ask me what the skill should do.",
+      "We're going to build a new skill step by step with `skill-creator`. To start, what do you want this skill to do?",
     addAttachments: "Add attachments",
     mode: "Mode",
     flashMode: "Flash",
