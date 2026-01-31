@@ -1,6 +1,7 @@
 "use client";
 
 import { SparklesIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ import { env } from "@/env";
 
 import { SettingsSection } from "./settings-section";
 
-export function SkillSettingsPage() {
+export function SkillSettingsPage({ onClose }: { onClose?: () => void } = {}) {
   const { t } = useI18n();
   const { skills, isLoading, error } = useSkills();
   return (
@@ -41,14 +42,21 @@ export function SkillSettingsPage() {
       ) : error ? (
         <div>Error: {error.message}</div>
       ) : (
-        <SkillSettingsList skills={skills} />
+        <SkillSettingsList skills={skills} onClose={onClose} />
       )}
     </SettingsSection>
   );
 }
 
-function SkillSettingsList({ skills }: { skills: Skill[] }) {
+function SkillSettingsList({
+  skills,
+  onClose,
+}: {
+  skills: Skill[];
+  onClose?: () => void;
+}) {
   const { t } = useI18n();
+  const router = useRouter();
   const [filter, setFilter] = useState<string>("public");
   const { mutate: enableSkill } = useEnableSkill();
   const filteredSkills = useMemo(
@@ -56,7 +64,8 @@ function SkillSettingsList({ skills }: { skills: Skill[] }) {
     [skills, filter],
   );
   const handleCreateSkill = () => {
-    console.log("create skill");
+    onClose?.();
+    router.push("/workspace/chats/new?mode=skill");
   };
   return (
     <div className="flex w-full flex-col gap-4">

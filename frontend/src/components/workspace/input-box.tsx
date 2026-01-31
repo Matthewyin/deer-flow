@@ -56,6 +56,7 @@ export function InputBox({
   context,
   extraHeader,
   isNewThread,
+  initialValue,
   onContextChange,
   onSubmit,
   onStop,
@@ -72,6 +73,7 @@ export function InputBox({
   };
   extraHeader?: React.ReactNode;
   isNewThread?: boolean;
+  initialValue?: string;
   onContextChange?: (
     context: Omit<
       AgentThreadContext,
@@ -164,6 +166,7 @@ export function InputBox({
           disabled={disabled}
           placeholder={t.inputBox.placeholder}
           autoFocus={autoFocus}
+          defaultValue={initialValue}
         />
       </PromptInputBody>
       <PromptInputFooter className="flex">

@@ -31,6 +31,7 @@ type SettingsDialogProps = React.ComponentProps<typeof Dialog> & {
 
 export function SettingsDialog({
   defaultSection = "appearance",
+  onOpenChange,
   ...dialogProps
 }: SettingsDialogProps) {
   const { t } = useI18n();
@@ -60,7 +61,7 @@ export function SettingsDialog({
     ],
   );
   return (
-    <Dialog {...dialogProps}>
+    <Dialog {...dialogProps} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex h-[75vh] max-h-[calc(100vh-2rem)] flex-col sm:max-w-5xl md:max-w-6xl"
         aria-describedby={undefined}
@@ -100,7 +101,11 @@ export function SettingsDialog({
             <div className="space-y-8 p-6">
               {activeSection === "appearance" && <AppearanceSettingsPage />}
               {activeSection === "tools" && <ToolSettingsPage />}
-              {activeSection === "skills" && <SkillSettingsPage />}
+              {activeSection === "skills" && (
+                <SkillSettingsPage
+                  onClose={() => onOpenChange?.(false)}
+                />
+              )}
               {activeSection === "notification" && <NotificationSettingsPage />}
               {activeSection === "acknowledge" && <AcknowledgePage />}
             </div>

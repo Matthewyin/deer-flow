@@ -1,7 +1,7 @@
 "use client";
 
 import { FilesIcon, XIcon } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConversationEmptyState } from "@/components/ai-elements/conversation";
@@ -52,6 +52,25 @@ export default function ChatPage() {
     selectedArtifact,
   } = useArtifacts();
   const { thread_id: threadIdFromPath } = useParams<{ thread_id: string }>();
+  const searchParams = useSearchParams();
+  const inputInitialValue = useMemo(() => {
+    if (threadIdFromPath !== "new" || searchParams.get("mode") !== "skill") {
+      return undefined;
+    }
+    return t.inputBox.createSkillPrompt;
+  }, [threadIdFromPath, searchParams, t.inputBox.createSkillPrompt]);
+  useEffect(() => {
+    if (inputInitialValue) {
+      setTimeout(() => {
+        const textarea = document.querySelector("textarea");
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = textarea.value.length;
+          textarea.selectionEnd = textarea.value.length;
+        }
+      }, 100);
+    }
+  }, [inputInitialValue]);
   const isNewThread = useMemo(
     () => threadIdFromPath === "new",
     [threadIdFromPath],
@@ -233,6 +252,7 @@ export default function ChatPage() {
                     context={settings.context}
                     extraHeader={isNewThread && <Welcome />}
                     disabled={env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true"}
+                    initialValue={inputInitialValue}
                     onContextChange={(context) =>
                       setSettings("context", context)
                     }
