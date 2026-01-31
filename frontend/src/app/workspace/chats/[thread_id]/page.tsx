@@ -29,7 +29,11 @@ import { useNotification } from "@/core/notification/hooks";
 import { useLocalSettings } from "@/core/settings";
 import { type AgentThread } from "@/core/threads";
 import { useSubmitThread, useThreadStream } from "@/core/threads/hooks";
-import { pathOfThread, titleOfThread } from "@/core/threads/utils";
+import {
+  pathOfThread,
+  textOfMessage,
+  titleOfThread,
+} from "@/core/threads/utils";
 import { uuid } from "@/core/utils/uuid";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
@@ -67,8 +71,20 @@ export default function ChatPage() {
     threadId,
     onFinish: (state) => {
       if (document.hidden || !document.hasFocus()) {
+        let body = "Conversation finished";
+        const lastMessage = state.messages[state.messages.length - 1];
+        if (lastMessage) {
+          const textContent = textOfMessage(lastMessage);
+          if (textContent) {
+            if (textContent.length > 200) {
+              body = textContent.substring(0, 200) + "...";
+            } else {
+              body = textContent;
+            }
+          }
+        }
         showNotification(state.title, {
-          body: `Conversation finished`,
+          body,
         });
       }
     },
