@@ -97,9 +97,7 @@ You have access to skills that provide optimized workflows for specific tasks. E
 
 **Skills are located at:** {skills_base_path}
 
-<all_available_skills>
 {skills_list}
-</all_available_skills>
 
 </skill_system>
 
@@ -181,10 +179,17 @@ def apply_prompt_template() -> str:
         container_base_path = "/mnt/skills"
 
     # Generate skills list XML with paths (path points to SKILL.md file)
-    skills_list = "\n".join(f'<skill name="{skill.name}" path="{skill.get_container_file_path(container_base_path)}">\n{skill.description}\n</skill>' for skill in skills)
-
-    # If no skills found, provide empty list
-    if not skills_list:
+    if skills:
+        skill_items = "\n".join(
+            f"    <skill>\n"
+            f"        <name>{skill.name}</name>\n"
+            f"        <description>{skill.description}</description>\n"
+            f"        <location>{skill.get_container_file_path(container_base_path)}</location>\n"
+            f"    </skill>"
+            for skill in skills
+        )
+        skills_list = f"<available_skills>\n{skill_items}\n</available_skills>"
+    else:
         skills_list = "<!-- No skills available -->"
 
     # Format the prompt with dynamic skills
