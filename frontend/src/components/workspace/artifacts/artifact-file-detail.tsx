@@ -50,7 +50,10 @@ import { useI18n } from "@/core/i18n/hooks";
 import { installSkill } from "@/core/skills/api";
 import { streamdownPlugins } from "@/core/streamdown";
 import { checkCodeFile, getFileName } from "@/core/utils/files";
+import { env } from "@/env";
 import { cn } from "@/lib/utils";
+
+import { Tooltip } from "../tooltip";
 
 import { useArtifacts } from "./context";
 
@@ -130,7 +133,7 @@ export function ArtifactFileDetail({
       if (result.success) {
         toast.success(result.message);
       } else {
-        toast.error(result.message || "Failed to install skill");
+        toast.error(result.message ?? "Failed to install skill");
       }
     } catch (error) {
       console.error("Failed to install skill:", error);
@@ -188,13 +191,18 @@ export function ArtifactFileDetail({
         <div className="flex items-center gap-2">
           <ArtifactActions>
             {!isWriteFile && filepath.endsWith(".skill") && (
-              <ArtifactAction
-                icon={isInstalling ? LoaderIcon : PackageIcon}
-                label={t.common.install}
-                tooltip={t.common.install}
-                disabled={isInstalling}
-                onClick={handleInstallSkill}
-              />
+              <Tooltip content={t.toolCalls.skillInstallTooltip}>
+                <ArtifactAction
+                  icon={isInstalling ? LoaderIcon : PackageIcon}
+                  label={t.common.install}
+                  tooltip={t.common.install}
+                  disabled={
+                    isInstalling ||
+                    env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true"
+                  }
+                  onClick={handleInstallSkill}
+                />
+              </Tooltip>
             )}
             {!isWriteFile && (
               <a href={urlOfArtifact({ filepath, threadId })} target="_blank">

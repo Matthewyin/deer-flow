@@ -111,6 +111,7 @@ export interface Translations {
     readFile: string;
     writeFile: string;
     writeTodos: string;
+    skillInstallTooltip: string;
   };
 
   // Settings

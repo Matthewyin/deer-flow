@@ -118,6 +118,7 @@ export const enUS: Translations = {
     readFile: "Read file",
     writeFile: "Write file",
     writeTodos: "Update to-do list",
+    skillInstallTooltip: "Install skill and make it available to DeerFlow",
   },
 
   // Settings
