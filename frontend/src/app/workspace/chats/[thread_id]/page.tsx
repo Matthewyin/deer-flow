@@ -229,7 +229,7 @@ export default function ChatPage() {
                 )}
               </div>
             </header>
-            <main className="flex min-h-0 grow flex-col">
+            <main className="flex min-h-0 max-w-full grow flex-col">
               <div className="flex size-full justify-center">
                 <MessageList
                   className={cn("size-full", !isNewThread && "pt-10")}

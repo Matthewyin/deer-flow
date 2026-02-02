@@ -5,6 +5,7 @@ import {
   FileCogIcon,
   FilePlayIcon,
   FileTextIcon,
+  ImageIcon,
 } from "lucide-react";
 
 const extensionMap: Record<string, string> = {
@@ -191,17 +192,28 @@ export function getFileExtensionDisplayName(filepath: string) {
   }
 }
 
-export function getFileIcon(filepath: string) {
+export function getFileIcon(filepath: string, className?: string) {
   const extension = getFileExtension(filepath);
   const { isCodeFile } = checkCodeFile(filepath);
-  const className = "size-6";
   switch (extension) {
     case "skill":
       return <FileCogIcon className={className} />;
     case "html":
       return <CompassIcon className={className} />;
+    case "txt":
     case "md":
       return <BookOpenTextIcon className={className} />;
+    case "jpg":
+    case "jpeg":
+    case "png":
+    case "gif":
+    case "bmp":
+    case "tiff":
+    case "ico":
+    case "webp":
+    case "svg":
+    case "heic":
+      return <ImageIcon className={className} />;
     case "mp3":
     case "wav":
     case "ogg":

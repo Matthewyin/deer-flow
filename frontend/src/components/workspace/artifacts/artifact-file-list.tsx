@@ -83,7 +83,7 @@ export function ArtifactFileList({
             <CardTitle className="relative pl-8">
               <div>{getFileName(file)}</div>
               <div className="absolute top-2 -left-0.5">
-                {getFileIcon(file)}
+                {getFileIcon(file, "size-6")}
               </div>
             </CardTitle>
             <CardDescription className="pl-8 text-xs">
