@@ -281,7 +281,7 @@ export default function ChatPage() {
                     onStop={handleStop}
                   />
                   {env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true" && (
-                    <div className="text-muted-foreground/67 w-full -translate-y-2 text-center text-xs">
+                    <div className="text-muted-foreground/67 w-full translate-y-12 text-center text-xs">
                       {t.common.notAvailableInDemoMode}
                     </div>
                   )}
