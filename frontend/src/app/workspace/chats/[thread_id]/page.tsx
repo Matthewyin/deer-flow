@@ -168,7 +168,7 @@ export default function ChatPage() {
     return artifactsOpen;
   }, [artifactsOpen, artifacts]);
 
-  const [todoListCollapsed, setTodoListCollapsed] = useState(false);
+  const [todoListCollapsed, setTodoListCollapsed] = useState(true);
 
   const handleSubmit = useSubmitThread({
     isNewThread,
