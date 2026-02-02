@@ -94,6 +94,14 @@ export interface Translations {
     searchChats: string;
   };
 
+  // Page titles (document title)
+  pages: {
+    appName: string;
+    chats: string;
+    newChat: string;
+    untitled: string;
+  };
+
   // Tool calls
   toolCalls: {
     moreSteps: (count: number) => string;

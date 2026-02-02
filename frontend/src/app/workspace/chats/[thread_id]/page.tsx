@@ -119,6 +119,26 @@ export default function ChatPage() {
     return result;
   }, [thread, isNewThread]);
 
+  useEffect(() => {
+    const pageTitle = isNewThread
+      ? t.pages.newChat
+      : thread.values?.title && thread.values.title !== "Untitled"
+        ? thread.values.title
+        : t.pages.untitled;
+    if (thread.isThreadLoading) {
+      document.title = `Loading... - ${t.pages.appName}`;
+    } else {
+      document.title = `${pageTitle} - ${t.pages.appName}`;
+    }
+  }, [
+    isNewThread,
+    t.pages.newChat,
+    t.pages.untitled,
+    t.pages.appName,
+    thread.values.title,
+    thread.isThreadLoading,
+  ]);
+
   const [autoSelectFirstArtifact, setAutoSelectFirstArtifact] = useState(true);
   useEffect(() => {
     setArtifacts(thread.values.artifacts);

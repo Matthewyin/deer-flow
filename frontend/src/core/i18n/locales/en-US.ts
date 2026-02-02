@@ -100,6 +100,14 @@ export const enUS: Translations = {
     searchChats: "Search chats",
   },
 
+  // Page titles (document title)
+  pages: {
+    appName: "DeerFlow",
+    chats: "Chats",
+    newChat: "New chat",
+    untitled: "Untitled",
+  },
+
   // Tool calls
   toolCalls: {
     moreSteps: (count: number) => `${count} more step${count === 1 ? "" : "s"}`,

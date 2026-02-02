@@ -98,6 +98,14 @@ export const zhCN: Translations = {
     searchChats: "搜索对话",
   },
 
+  // Page titles (document title)
+  pages: {
+    appName: "DeerFlow",
+    chats: "对话",
+    newChat: "新对话",
+    untitled: "未命名",
+  },
+
   // Tool calls
   toolCalls: {
     moreSteps: (count: number) => `查看其他 ${count} 个步骤`,
