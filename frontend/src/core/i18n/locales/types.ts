@@ -24,6 +24,8 @@ export interface Translations {
     custom: string;
     notAvailableInDemoMode: string;
     loading: string;
+    version: string;
+    lastUpdated: string;
     code: string;
     preview: string;
     cancel: string;
@@ -149,10 +151,45 @@ export interface Translations {
     description: string;
     sections: {
       appearance: string;
+      memory: string;
       tools: string;
       skills: string;
       notification: string;
       acknowledge: string;
+    };
+    memory: {
+      title: string;
+      description: string;
+      empty: string;
+      rawJson: string;
+      markdown: {
+        overview: string;
+        userContext: string;
+        work: string;
+        personal: string;
+        topOfMind: string;
+        historyBackground: string;
+        recentMonths: string;
+        earlierContext: string;
+        longTermBackground: string;
+        updatedAt: string;
+        facts: string;
+        empty: string;
+        table: {
+          category: string;
+          confidence: string;
+          confidenceLevel: {
+            veryHigh: string;
+            high: string;
+            normal: string;
+            unknown: string;
+          };
+          content: string;
+          source: string;
+          createdAt: string;
+          view: string;
+        };
+      };
     };
     appearance: {
       themeTitle: string;

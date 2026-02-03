@@ -1,6 +1,12 @@
 "use client";
 
-import { BellIcon, PaletteIcon, SparklesIcon, WrenchIcon } from "lucide-react";
+import {
+  BellIcon,
+  BrainIcon,
+  PaletteIcon,
+  SparklesIcon,
+  WrenchIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
@@ -12,6 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AcknowledgePage } from "@/components/workspace/settings/acknowledge-page";
 import { AppearanceSettingsPage } from "@/components/workspace/settings/appearance-settings-page";
+import { MemorySettingsPage } from "@/components/workspace/settings/memory-settings-page";
 import { NotificationSettingsPage } from "@/components/workspace/settings/notification-settings-page";
 import { SkillSettingsPage } from "@/components/workspace/settings/skill-settings-page";
 import { ToolSettingsPage } from "@/components/workspace/settings/tool-settings-page";
@@ -20,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 type SettingsSection =
   | "appearance"
+  | "memory"
   | "tools"
   | "skills"
   | "notification"
@@ -29,11 +37,8 @@ type SettingsDialogProps = React.ComponentProps<typeof Dialog> & {
   defaultSection?: SettingsSection;
 };
 
-export function SettingsDialog({
-  defaultSection = "appearance",
-  onOpenChange,
-  ...dialogProps
-}: SettingsDialogProps) {
+export function SettingsDialog(props: SettingsDialogProps) {
+  const { defaultSection = "appearance", ...dialogProps } = props;
   const { t } = useI18n();
   const [activeSection, setActiveSection] =
     useState<SettingsSection>(defaultSection);
@@ -50,18 +55,27 @@ export function SettingsDialog({
         label: t.settings.sections.notification,
         icon: BellIcon,
       },
+      {
+        id: "memory",
+        label: t.settings.sections.memory,
+        icon: BrainIcon,
+      },
       { id: "tools", label: t.settings.sections.tools, icon: WrenchIcon },
       { id: "skills", label: t.settings.sections.skills, icon: SparklesIcon },
     ],
     [
       t.settings.sections.appearance,
+      t.settings.sections.memory,
       t.settings.sections.tools,
       t.settings.sections.skills,
       t.settings.sections.notification,
     ],
   );
   return (
-    <Dialog {...dialogProps} onOpenChange={onOpenChange}>
+    <Dialog
+      {...dialogProps}
+      onOpenChange={(open) => props.onOpenChange?.(open)}
+    >
       <DialogContent
         className="flex h-[75vh] max-h-[calc(100vh-2rem)] flex-col sm:max-w-5xl md:max-w-6xl"
         aria-describedby={undefined}
@@ -100,10 +114,11 @@ export function SettingsDialog({
           <ScrollArea className="h-full min-h-0 rounded-lg border">
             <div className="space-y-8 p-6">
               {activeSection === "appearance" && <AppearanceSettingsPage />}
+              {activeSection === "memory" && <MemorySettingsPage />}
               {activeSection === "tools" && <ToolSettingsPage />}
               {activeSection === "skills" && (
                 <SkillSettingsPage
-                  onClose={() => onOpenChange?.(false)}
+                  onClose={() => props.onOpenChange?.(false)}
                 />
               )}
               {activeSection === "notification" && <NotificationSettingsPage />}

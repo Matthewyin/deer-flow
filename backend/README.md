@@ -2,6 +2,7 @@
 
 DeerFlow is a LangGraph-based AI agent system that provides a powerful "super agent" with sandbox execution capabilities. The backend enables AI agents to execute code, browse the web, manage files, and perform complex multi-step tasks in isolated environments.
 
+---
 ## Features
 
 - **LangGraph Agent Runtime**: Built on LangGraph for robust multi-agent workflow orchestration
@@ -13,6 +14,7 @@ DeerFlow is a LangGraph-based AI agent system that provides a powerful "super ag
 - **Context Summarization**: Automatic conversation summarization for long conversations
 - **Plan Mode**: TodoList middleware for complex multi-step task tracking
 
+---
 ## Architecture
 
 ```
@@ -33,6 +35,7 @@ DeerFlow is a LangGraph-based AI agent system that provides a powerful "super ag
 - `/api/*` (other) → Gateway API (models, MCP, skills, artifacts, uploads)
 - `/` (non-API) → Frontend (web interface)
 
+---
 ## Quick Start
 
 ### Prerequisites
@@ -101,6 +104,7 @@ Direct access:
 - LangGraph: http://localhost:2024
 - Gateway: http://localhost:8001
 
+---
 ## Project Structure
 
 ```
@@ -129,6 +133,7 @@ backend/
 └── Dockerfile               # Container build
 ```
 
+---
 ## API Reference
 
 ### LangGraph API (via `/api/langgraph/*`)
@@ -164,6 +169,7 @@ backend/
 **Artifacts**:
 - `GET /api/threads/{thread_id}/artifacts/{path}` - Download generated artifacts
 
+---
 ## Configuration
 
 ### Main Configuration (`config.yaml`)
@@ -209,6 +215,7 @@ MCP servers and skills are configured in `extensions_config.json`:
 - Model API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, etc.
 - Tool API keys: `TAVILY_API_KEY`, `GITHUB_TOKEN`, etc.
 
+---
 ## Development
 
 ### Commands
@@ -234,6 +241,7 @@ make format     # Format code (ruff)
 uv run pytest
 ```
 
+---
 ## Documentation
 
 - [Configuration Guide](docs/CONFIGURATION.md) - Detailed configuration options
@@ -243,6 +251,7 @@ uv run pytest
 - [Summarization](docs/summarization.md) - Context summarization feature
 - [Plan Mode](docs/plan_mode_usage.md) - TodoList middleware usage
 
+---
 ## Technology Stack
 
 ### Core Frameworks
@@ -266,10 +275,12 @@ uv run pytest
 - `firecrawl-py` - Web scraping
 - `ddgs` - DuckDuckGo image search
 
+---
 ## License
 
 See the [LICENSE](../LICENSE) file in the project root.
 
+---
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
