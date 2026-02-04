@@ -1,5 +1,6 @@
 import mimetypes
 import os
+import re
 import zipfile
 from pathlib import Path
 from urllib.parse import quote
@@ -59,6 +60,68 @@ def is_text_file_by_content(path: Path, sample_size: int = 8192) -> bool:
             return b"\x00" not in chunk
     except Exception:
         return False
+
+
+def remove_citations_block(content: str) -> str:
+    """Remove ALL citations from markdown content.
+    
+    Removes:
+    - <citations>...</citations> blocks (complete and incomplete)
+    - [cite-N] references
+    - Citation markdown links that were converted from [cite-N]
+    
+    This is used for downloads to provide clean markdown without any citation references.
+    
+    Args:
+        content: The markdown content that may contain citations blocks.
+        
+    Returns:
+        Clean content with all citations completely removed.
+    """
+    if not content:
+        return content
+    
+    result = content
+    
+    # Step 1: Parse and extract citation URLs before removing blocks
+    citation_urls = set()
+    citations_pattern = r'<citations>([\s\S]*?)</citations>'
+    for match in re.finditer(citations_pattern, content):
+        citations_block = match.group(1)
+        # Extract URLs from JSON lines
+        import json
+        for line in citations_block.split('\n'):
+            line = line.strip()
+            if line.startswith('{'):
+                try:
+                    citation = json.loads(line)
+                    if 'url' in citation:
+                        citation_urls.add(citation['url'])
+                except (json.JSONDecodeError, ValueError):
+                    pass
+    
+    # Step 2: Remove complete citations blocks
+    result = re.sub(r'<citations>[\s\S]*?</citations>', '', result)
+    
+    # Step 3: Remove incomplete citations blocks (at end of content during streaming)
+    if "<citations>" in result:
+        result = re.sub(r'<citations>[\s\S]*$', '', result)
+    
+    # Step 4: Remove all [cite-N] references
+    result = re.sub(r'\[cite-\d+\]', '', result)
+    
+    # Step 5: Remove markdown links that point to citation URLs
+    # Pattern: [text](url)
+    if citation_urls:
+        for url in citation_urls:
+            # Escape special regex characters in URL
+            escaped_url = re.escape(url)
+            result = re.sub(rf'\[[^\]]+\]\({escaped_url}\)', '', result)
+    
+    # Step 6: Clean up extra whitespace and newlines
+    result = re.sub(r'\n{3,}', '\n\n', result)  # Replace 3+ newlines with 2
+    
+    return result.strip()
 
 
 def _extract_file_from_skill_archive(zip_path: Path, internal_path: str) -> bytes | None:
@@ -176,8 +239,23 @@ async def get_artifact(thread_id: str, path: str, request: Request) -> FileRespo
     # Encode filename for Content-Disposition header (RFC 5987)
     encoded_filename = quote(actual_path.name)
     
+    # Check if this is a markdown file that might contain citations
+    is_markdown = mime_type == "text/markdown" or actual_path.suffix.lower() in [".md", ".markdown"]
+    
     # if `download` query parameter is true, return the file as a download
     if request.query_params.get("download"):
+        # For markdown files, remove citations block before download
+        if is_markdown:
+            content = actual_path.read_text()
+            clean_content = remove_citations_block(content)
+            return Response(
+                content=clean_content.encode("utf-8"),
+                media_type="text/markdown",
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                    "Content-Type": "text/markdown; charset=utf-8"
+                }
+            )
         return FileResponse(path=actual_path, filename=actual_path.name, media_type=mime_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"})
 
     if mime_type and mime_type == "text/html":

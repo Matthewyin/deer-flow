@@ -2,7 +2,6 @@ import {
   Code2Icon,
   CopyIcon,
   DownloadIcon,
-  ExternalLinkIcon,
   EyeIcon,
   LoaderIcon,
   PackageIcon,
@@ -22,13 +21,7 @@ import {
   ArtifactHeader,
   ArtifactTitle,
 } from "@/components/ai-elements/artifact";
-import {
-  InlineCitationCard,
-  InlineCitationCardBody,
-  InlineCitationSource,
-} from "@/components/ai-elements/inline-citation";
-import { Badge } from "@/components/ui/badge";
-import { HoverCardTrigger } from "@/components/ui/hover-card";
+import { CitationLink } from "@/components/ai-elements/inline-citation";
 import { Select, SelectItem } from "@/components/ui/select";
 import {
   SelectContent,
@@ -42,9 +35,8 @@ import { useArtifactContent } from "@/core/artifacts/hooks";
 import { urlOfArtifact } from "@/core/artifacts/utils";
 import {
   buildCitationMap,
-  extractDomainFromUrl,
   parseCitations,
-  type Citation,
+  removeAllCitations,
 } from "@/core/citations";
 import { useI18n } from "@/core/i18n/hooks";
 import { installSkill } from "@/core/skills/api";
@@ -106,6 +98,14 @@ export function ArtifactFileDetail({
   const cleanContent = useMemo(() => {
     if (language === "markdown" && content) {
       return parseCitations(content).cleanContent;
+    }
+    return content;
+  }, [content, language]);
+
+  // Get content without ANY citations for copy/download
+  const contentWithoutCitations = useMemo(() => {
+    if (language === "markdown" && content) {
+      return removeAllCitations(content);
     }
     return content;
   }, [content, language]);
@@ -220,7 +220,7 @@ export function ArtifactFileDetail({
                 disabled={!content}
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(content ?? "");
+                    await navigator.clipboard.writeText(contentWithoutCitations ?? "");
                     toast.success(t.clipboard.copiedToClipboard);
                   } catch (error) {
                     toast.error("Failed to copy to clipboard");
@@ -293,7 +293,6 @@ export function ArtifactFilePreview({
     const parsed = parseCitations(content ?? "");
     const map = buildCitationMap(parsed.citations);
     return {
-      citations: parsed.citations,
       cleanContent: parsed.cleanContent,
       citationMap: map,
     };
@@ -318,9 +317,9 @@ export function ArtifactFilePreview({
               const citation = citationMap.get(href);
               if (citation) {
                 return (
-                  <ArtifactCitationLink citation={citation} href={href}>
+                  <CitationLink citation={citation} href={href}>
                     {children}
-                  </ArtifactCitationLink>
+                  </CitationLink>
                 );
               }
 
@@ -330,7 +329,7 @@ export function ArtifactFilePreview({
 
               if (isExternalLink) {
                 return (
-                  <ExternalLinkBadge href={href}>{children}</ExternalLinkBadge>
+                  <CitationLink href={href}>{children}</CitationLink>
                 );
               }
 
@@ -359,105 +358,3 @@ export function ArtifactFilePreview({
   return null;
 }
 
-/**
- * Citation link component for artifact preview (with full citation data)
- */
-function ArtifactCitationLink({
-  citation,
-  href,
-  children,
-}: {
-  citation: Citation;
-  href: string;
-  children: React.ReactNode;
-}) {
-  const domain = extractDomainFromUrl(href);
-
-  return (
-    <InlineCitationCard>
-      <HoverCardTrigger asChild>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Badge
-            variant="secondary"
-            className="hover:bg-secondary/80 mx-0.5 cursor-pointer gap-1 rounded-full px-2 py-0.5 text-xs font-normal"
-          >
-            {children ?? domain}
-            <ExternalLinkIcon className="size-3" />
-          </Badge>
-        </a>
-      </HoverCardTrigger>
-      <InlineCitationCardBody>
-        <div className="p-3">
-          <InlineCitationSource
-            title={citation.title}
-            url={href}
-            description={citation.snippet}
-          />
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary mt-2 inline-flex items-center gap-1 text-xs hover:underline"
-          >
-            Visit source
-            <ExternalLinkIcon className="size-3" />
-          </a>
-        </div>
-      </InlineCitationCardBody>
-    </InlineCitationCard>
-  );
-}
-
-/**
- * External link badge component for artifact preview
- */
-function ExternalLinkBadge({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  const domain = extractDomainFromUrl(href);
-
-  return (
-    <InlineCitationCard>
-      <HoverCardTrigger asChild>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center"
-        >
-          <Badge
-            variant="secondary"
-            className="hover:bg-secondary/80 mx-0.5 cursor-pointer gap-1 rounded-full px-2 py-0.5 text-xs font-normal"
-          >
-            {children ?? domain}
-            <ExternalLinkIcon className="size-3" />
-          </Badge>
-        </a>
-      </HoverCardTrigger>
-      <InlineCitationCardBody>
-        <div className="p-3">
-          <InlineCitationSource title={domain} url={href} />
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary mt-2 inline-flex items-center gap-1 text-xs hover:underline"
-          >
-            Visit source
-            <ExternalLinkIcon className="size-3" />
-          </a>
-        </div>
-      </InlineCitationCardBody>
-    </InlineCitationCard>
-  );
-}

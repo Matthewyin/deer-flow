@@ -76,6 +76,29 @@ export function parseCitations(content: string): ParseCitationsResult {
     cleanContent = cleanContent.replace(/<citations>[\s\S]*$/g, "").trim();
   }
 
+  // Convert [cite-N] references to markdown links
+  // Example: [cite-1] -> [Title](url)
+  if (citations.length > 0) {
+    // Build a map from citation id to citation object
+    const idMap = new Map<string, Citation>();
+    for (const citation of citations) {
+      idMap.set(citation.id, citation);
+    }
+
+    // Replace all [cite-N] patterns with markdown links
+    cleanContent = cleanContent.replace(/\[cite-(\d+)\]/g, (match, num) => {
+      const citeId = `cite-${num}`;
+      const citation = idMap.get(citeId);
+      if (citation) {
+        // Use title if available, otherwise use domain
+        const linkText = citation.title || extractDomainFromUrl(citation.url);
+        return `[${linkText}](${citation.url})`;
+      }
+      // If citation not found, keep the original text
+      return match;
+    });
+  }
+
   return { citations, cleanContent };
 }
 
@@ -128,4 +151,52 @@ export function isCitationsBlockIncomplete(content: string): boolean {
   const hasCloseTag = content.includes("</citations>");
 
   return hasOpenTag && !hasCloseTag;
+}
+
+/**
+ * Remove ALL citations from content, including:
+ * - <citations> blocks
+ * - [cite-N] references
+ * - Citation markdown links that were converted from [cite-N]
+ * 
+ * This is used for copy/download operations where we want clean content without any references.
+ *
+ * @param content - The raw content that may contain citations
+ * @returns Content with all citations completely removed
+ */
+export function removeAllCitations(content: string): string {
+  if (!content) {
+    return content;
+  }
+
+  let result = content;
+
+  // Step 1: Remove all <citations> blocks (complete and incomplete)
+  result = result.replace(/<citations>[\s\S]*?<\/citations>/g, "");
+  result = result.replace(/<citations>[\s\S]*$/g, "");
+
+  // Step 2: Remove all [cite-N] references
+  result = result.replace(/\[cite-\d+\]/g, "");
+
+  // Step 3: Parse to find citation URLs and remove those specific links
+  const parsed = parseCitations(content);
+  const citationUrls = new Set(parsed.citations.map(c => c.url));
+  
+  // Remove markdown links that point to citation URLs
+  // Pattern: [text](url)
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+    // If this URL is a citation, remove the entire link
+    if (citationUrls.has(url)) {
+      return "";
+    }
+    // Keep non-citation links
+    return match;
+  });
+
+  // Step 4: Clean up extra whitespace and newlines
+  result = result
+    .replace(/\n{3,}/g, "\n\n") // Replace 3+ newlines with 2
+    .trim();
+
+  return result;
 }

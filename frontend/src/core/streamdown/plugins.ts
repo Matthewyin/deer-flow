@@ -5,7 +5,8 @@ import type { StreamdownProps } from "streamdown";
 
 export const streamdownPlugins = {
   remarkPlugins: [
-    [remarkGfm, [remarkMath, { singleDollarTextMath: true }]],
+    remarkGfm,
+    [remarkMath, { singleDollarTextMath: true }],
   ] as StreamdownProps["remarkPlugins"],
   rehypePlugins: [
     [rehypeKatex, { output: "html" }],

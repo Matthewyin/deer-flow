@@ -22,14 +22,17 @@ import {
   ChainOfThoughtStep,
 } from "@/components/ai-elements/chain-of-thought";
 import { CodeBlock } from "@/components/ai-elements/code-block";
+import { CitationsLoadingIndicator } from "@/components/ai-elements/inline-citation";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { Button } from "@/components/ui/button";
+import { parseCitations } from "@/core/citations";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   extractReasoningContentFromMessage,
   findToolCallResult,
 } from "@/core/messages/utils";
 import { useRehypeSplitWordsIntoSpans } from "@/core/rehype";
+import { streamdownPlugins } from "@/core/streamdown";
 import { extractTitleFromMarkdown } from "@/core/utils/markdown";
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
@@ -37,6 +40,8 @@ import { cn } from "@/lib/utils";
 import { useArtifacts } from "../artifacts";
 import { FlipDisplay } from "../flip-display";
 import { Tooltip } from "../tooltip";
+
+import { useThread } from "./context";
 
 export function MessageGroup({
   className,
@@ -115,7 +120,7 @@ export function MessageGroup({
                 <ChainOfThoughtStep
                   key={step.id}
                   label={
-                    <MessageResponse rehypePlugins={rehypePlugins}>
+                    <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
                       {step.reasoning ?? ""}
                     </MessageResponse>
                   }
@@ -165,7 +170,7 @@ export function MessageGroup({
               <ChainOfThoughtStep
                 key={lastReasoningStep.id}
                 label={
-                  <MessageResponse rehypePlugins={rehypePlugins}>
+                  <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
                     {lastReasoningStep.reasoning ?? ""}
                   </MessageResponse>
                 }
@@ -198,6 +203,13 @@ function ToolCall({
   const { t } = useI18n();
   const { setOpen, autoOpen, autoSelect, selectedArtifact, select } =
     useArtifacts();
+  const { thread } = useThread();
+  const threadIsLoading = thread.isLoading;
+
+  // Move useMemo to top level to comply with React Hooks rules
+  const fileContent = typeof args.content === "string" ? args.content : "";
+  const { citations } = useMemo(() => parseCitations(fileContent), [fileContent]);
+
   if (name === "web_search") {
     let label: React.ReactNode = t.toolCalls.searchForRelatedInfo;
     if (typeof args.query === "string") {
@@ -353,29 +365,42 @@ function ToolCall({
         setOpen(true);
       }, 100);
     }
+
+    // Check if this is a markdown file with citations
+    const isMarkdown = path?.toLowerCase().endsWith(".md") || path?.toLowerCase().endsWith(".markdown");
+    const hasCitationsBlock = fileContent.includes("<citations>");
+    const showCitationsLoading = isMarkdown && threadIsLoading && hasCitationsBlock && isLast;
+
     return (
-      <ChainOfThoughtStep
-        key={id}
-        className="cursor-pointer"
-        label={description}
-        icon={NotebookPenIcon}
-        onClick={() => {
-          select(
-            new URL(
-              `write-file:${path}?message_id=${messageId}&tool_call_id=${id}`,
-            ).toString(),
-          );
-          setOpen(true);
-        }}
-      >
-        {path && (
-          <Tooltip content={t.toolCalls.clickToViewContent}>
-            <ChainOfThoughtSearchResult className="cursor-pointer">
-              {path}
-            </ChainOfThoughtSearchResult>
-          </Tooltip>
+      <>
+        <ChainOfThoughtStep
+          key={id}
+          className="cursor-pointer"
+          label={description}
+          icon={NotebookPenIcon}
+          onClick={() => {
+            select(
+              new URL(
+                `write-file:${path}?message_id=${messageId}&tool_call_id=${id}`,
+              ).toString(),
+            );
+            setOpen(true);
+          }}
+        >
+          {path && (
+            <Tooltip content={t.toolCalls.clickToViewContent}>
+              <ChainOfThoughtSearchResult className="cursor-pointer">
+                {path}
+              </ChainOfThoughtSearchResult>
+            </Tooltip>
+          )}
+        </ChainOfThoughtStep>
+        {showCitationsLoading && (
+          <div className="ml-8 mt-2">
+            <CitationsLoadingIndicator citations={citations} />
+          </div>
         )}
-      </ChainOfThoughtStep>
+      </>
     );
   } else if (name === "bash") {
     const description: string | undefined = (args as { description: string })

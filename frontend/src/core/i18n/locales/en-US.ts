@@ -162,6 +162,13 @@ export const enUS: Translations = {
     startConversation: "Start a conversation to see messages here",
   },
 
+  // Citations
+  citations: {
+    loadingCitations: "Organizing citations...",
+    loadingCitationsWithCount: (count: number) =>
+      `Organizing ${count} citation${count === 1 ? "" : "s"}...`,
+  },
+
   // Chats
   chats: {
     searchChats: "Search chats",

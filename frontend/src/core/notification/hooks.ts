@@ -78,7 +78,6 @@ export function useNotification(): UseNotificationReturn {
 
       // Optional: Add event listeners
       notification.onclick = () => {
-        console.log("Notification clicked");
         window.focus();
         notification.close();
       };

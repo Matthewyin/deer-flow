@@ -206,12 +206,6 @@ export function useRenameThread() {
       });
     },
     onSuccess(_, { threadId, title }) {
-      queryClient.setQueryData(
-        ["thread", "state", threadId],
-        (oldData: Array<AgentThread>) => {
-          console.info("oldData", oldData);
-        },
-      );
       queryClient.setQueriesData(
         {
           queryKey: ["threads", "search"],

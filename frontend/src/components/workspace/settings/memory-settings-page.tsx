@@ -37,8 +37,6 @@ function memoryToMarkdown(
 ) {
   const parts: string[] = [];
 
-  console.info(memory);
-
   parts.push(`## ${t.settings.memory.markdown.overview}`);
   parts.push(`- **${t.common.version}**: \`${memory.version}\``);
   parts.push(
