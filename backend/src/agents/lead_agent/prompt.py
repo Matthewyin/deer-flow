@@ -2,6 +2,67 @@ from datetime import datetime
 
 from src.skills import load_skills
 
+SUBAGENT_SECTION = """<subagent_system>
+You can delegate tasks to specialized subagents using the `task` tool. Subagents run in isolated context and return concise results.
+
+**Available Subagents:**
+- **general-purpose**: For complex, multi-step tasks requiring exploration and action
+- **bash**: For command execution (git, build, test, deploy operations)
+
+**When to Use task:**
+✅ USE task when:
+- Output would be verbose (tests, builds, large file searches)
+- Multiple independent tasks can run in parallel (use `run_in_background=True`)
+- Exploring/researching codebase extensively with many file reads
+
+❌ DON'T use task when:
+- Task is straightforward → execute directly for better user visibility
+- Need user clarification → subagents cannot ask questions
+- Need real-time feedback → main agent has streaming, subagents don't
+- Task depends on conversation context → subagents have isolated context
+
+**Background Task Protocol (CRITICAL):**
+When you use `run_in_background=True`:
+1. **You MUST wait for completion** - Background tasks run asynchronously, but you are responsible for getting results
+2. **Poll task status** - Call `task_status(task_id)` to check progress
+3. **Check status field** - Status can be: `pending`, `running`, `completed`, `failed`
+4. **Retry if still running** - If status is `pending` or `running`, wait a moment and call `task_status` again
+5. **Report results to user** - Only respond to user AFTER getting the final result
+
+**STRICT RULE: Never end the conversation with background tasks still running. You MUST retrieve all results first.**
+
+**Usage:**
+```python
+# Synchronous - wait for result (preferred for most cases)
+task(
+    subagent_type="general-purpose",
+    prompt="Search all Python files for deprecated API usage and list them",
+    description="Find deprecated APIs"
+)
+
+# Background - run in parallel (MUST poll for results)
+task_id = task(
+    subagent_type="bash",
+    prompt="Run npm install && npm run build && npm test",
+    description="Build and test frontend",
+    run_in_background=True
+)
+# Extract task_id from the response
+# Then IMMEDIATELY start polling:
+while True:
+    status_result = task_status(task_id)
+    if "Status: completed" in status_result or "Status: failed" in status_result:
+        # Task finished, use the result
+        break
+    # Task still running, continue polling
+
+# Multiple parallel tasks
+task_id_1 = task(..., run_in_background=True)
+task_id_2 = task(..., run_in_background=True)
+# Poll BOTH tasks until complete before responding to user
+```
+</subagent_system>"""
+
 SYSTEM_PROMPT_TEMPLATE = """
 <role>
 You are DeerFlow 2.0, an open-source super agent.
@@ -103,66 +164,7 @@ You have access to skills that provide optimized workflows for specific tasks. E
 
 </skill_system>
 
-<subagent_system>
-You can delegate tasks to specialized subagents using the `task` tool. Subagents run in isolated context and return concise results.
-
-**Available Subagents:**
-- **general-purpose**: For complex, multi-step tasks requiring exploration and action
-- **bash**: For command execution (git, build, test, deploy operations)
-
-**When to Use task:**
-✅ USE task when:
-- Output would be verbose (tests, builds, large file searches)
-- Multiple independent tasks can run in parallel (use `run_in_background=True`)
-- Exploring/researching codebase extensively with many file reads
-
-❌ DON'T use task when:
-- Task is straightforward → execute directly for better user visibility
-- Need user clarification → subagents cannot ask questions
-- Need real-time feedback → main agent has streaming, subagents don't
-- Task depends on conversation context → subagents have isolated context
-
-**Background Task Protocol (CRITICAL):**
-When you use `run_in_background=True`:
-1. **You MUST wait for completion** - Background tasks run asynchronously, but you are responsible for getting results
-2. **Poll task status** - Call `task_status(task_id)` to check progress
-3. **Check status field** - Status can be: `pending`, `running`, `completed`, `failed`
-4. **Retry if still running** - If status is `pending` or `running`, wait a moment and call `task_status` again
-5. **Report results to user** - Only respond to user AFTER getting the final result
-
-**STRICT RULE: Never end the conversation with background tasks still running. You MUST retrieve all results first.**
-
-**Usage:**
-```python
-# Synchronous - wait for result (preferred for most cases)
-task(
-    subagent_type="general-purpose",
-    prompt="Search all Python files for deprecated API usage and list them",
-    description="Find deprecated APIs"
-)
-
-# Background - run in parallel (MUST poll for results)
-task_id = task(
-    subagent_type="bash",
-    prompt="Run npm install && npm run build && npm test",
-    description="Build and test frontend",
-    run_in_background=True
-)
-# Extract task_id from the response
-# Then IMMEDIATELY start polling:
-while True:
-    status_result = task_status(task_id)
-    if "Status: completed" in status_result or "Status: failed" in status_result:
-        # Task finished, use the result
-        break
-    # Task still running, continue polling
-
-# Multiple parallel tasks
-task_id_1 = task(..., run_in_background=True)
-task_id_2 = task(..., run_in_background=True)
-# Poll BOTH tasks until complete before responding to user
-```
-</subagent_system>
+{subagent_section}
 
 <working_directory existed="true">
 - User uploads: `/mnt/user-data/uploads` - Files uploaded by the user (automatically listed in context)
@@ -260,15 +262,17 @@ def apply_prompt_template() -> str:
     # Load only enabled skills
     skills = load_skills(enabled_only=True)
 
-    # Get skills container path from config
+    # Get config
     try:
         from src.config import get_app_config
 
         config = get_app_config()
         container_base_path = config.skills.container_path
+        subagents_enabled = config.subagents.enabled
     except Exception:
-        # Fallback to default if config fails
+        # Fallback to defaults if config fails
         container_base_path = "/mnt/skills"
+        subagents_enabled = True
 
     # Generate skills list XML with paths (path points to SKILL.md file)
     if skills:
@@ -282,11 +286,15 @@ def apply_prompt_template() -> str:
     # Get memory context
     memory_context = _get_memory_context()
 
+    # Include subagent section only if enabled
+    subagent_section = SUBAGENT_SECTION if subagents_enabled else ""
+
     # Format the prompt with dynamic skills and memory
     prompt = SYSTEM_PROMPT_TEMPLATE.format(
         skills_list=skills_list,
         skills_base_path=container_base_path,
         memory_context=memory_context,
+        subagent_section=subagent_section,
     )
 
     return prompt + f"\n<current_date>{datetime.now().strftime('%Y-%m-%d, %A')}</current_date>"

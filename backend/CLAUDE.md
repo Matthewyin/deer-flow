@@ -268,6 +268,8 @@ Models, tools, sandbox providers, skills, and middleware settings are configured
 - `skills.container_path`: Container mount path (default: `/mnt/skills`)
 - `title`: Automatic thread title generation configuration
 - `summarization`: Automatic conversation summarization configuration
+- `subagents`: Subagent (task tool) configuration
+  - `enabled`: Master switch to enable/disable subagents (boolean, default: true)
 - `memory`: Memory system configuration
   - `enabled`: Master switch (boolean)
   - `storage_path`: Path to memory.json file (relative to backend/)

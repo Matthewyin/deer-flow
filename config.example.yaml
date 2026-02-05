@@ -282,6 +282,18 @@ summarization:
 #
 # For more information, see: https://modelcontextprotocol.io
 
+# ============================================================================
+# Subagents Configuration
+# ============================================================================
+# Enable or disable the subagent (task tool) functionality
+# Subagents allow delegating complex tasks to specialized agents
+
+subagents:
+  enabled: true  # Set to false to disable subagents
+
+# ============================================================================
+# Memory Configuration
+# ============================================================================
 # Global memory mechanism
 # Stores user context and conversation history for personalized responses
 memory:

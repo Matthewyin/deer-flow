@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 BUILTIN_TOOLS = [
     present_file_tool,
     ask_clarification_tool,
+]
+
+SUBAGENT_TOOLS = [
     task_tool,
     task_status_tool,
 ]
@@ -54,13 +57,19 @@ def get_available_tools(groups: list[str] | None = None, include_mcp: bool = Tru
         except Exception as e:
             logger.error(f"Failed to get cached MCP tools: {e}")
 
-    # Conditionally add view_image_tool only if the model supports vision
+    # Conditionally add tools based on config
     builtin_tools = BUILTIN_TOOLS.copy()
+
+    # Add subagent tools only if enabled
+    if config.subagents.enabled:
+        builtin_tools.extend(SUBAGENT_TOOLS)
+        logger.info("Including subagent tools (task, task_status)")
 
     # If no model_name specified, use the first model (default)
     if model_name is None and config.models:
         model_name = config.models[0].name
 
+    # Add view_image_tool only if the model supports vision
     model_config = config.get_model_config(model_name) if model_name else None
     if model_config is not None and model_config.supports_vision:
         builtin_tools.append(view_image_tool)
