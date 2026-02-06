@@ -220,11 +220,13 @@ function ToolCall({
         {Array.isArray(result) && (
           <ChainOfThoughtSearchResults>
             {result.map((item) => (
-              <ChainOfThoughtSearchResult key={item.url}>
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  {item.title}
-                </a>
-              </ChainOfThoughtSearchResult>
+              <Tooltip key={item.url} content={item.snippet}>
+                <ChainOfThoughtSearchResult key={item.url}>
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    {item.title}
+                  </a>
+                </ChainOfThoughtSearchResult>
+              </Tooltip>
             ))}
           </ChainOfThoughtSearchResults>
         )}

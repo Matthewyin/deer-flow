@@ -177,7 +177,8 @@ export default function ChatPage() {
     threadContext: {
       ...settings.context,
       thinking_enabled: settings.context.mode !== "flash",
-      is_plan_mode: settings.context.mode === "pro",
+      is_plan_mode: settings.context.mode === "pro" || settings.context.mode === "ultra",
+      subagent_enabled: settings.context.mode === "ultra",
     },
     afterSubmit() {
       router.push(pathOfThread(threadId!));
@@ -244,7 +245,7 @@ export default function ChatPage() {
                 <div
                   className={cn(
                     "relative w-full",
-                    isNewThread && "-translate-y-[calc(50vh-160px)]",
+                    isNewThread && "-translate-y-[calc(50vh-96px)]",
                     isNewThread
                       ? "max-w-(--container-width-sm)"
                       : "max-w-(--container-width-md)",

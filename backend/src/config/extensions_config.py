@@ -162,7 +162,7 @@ class ExtensionsConfig(BaseModel):
         skill_config = self.skills.get(skill_name)
         if skill_config is None:
             # Default to enable for public & custom skill
-            return skill_category in ('public', 'custom')
+            return skill_category in ("public", "custom")
         return skill_config.enabled
 
 

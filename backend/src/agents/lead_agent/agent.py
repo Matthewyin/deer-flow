@@ -233,11 +233,12 @@ def make_lead_agent(config: RunnableConfig):
     thinking_enabled = config.get("configurable", {}).get("thinking_enabled", True)
     model_name = config.get("configurable", {}).get("model_name") or config.get("configurable", {}).get("model")
     is_plan_mode = config.get("configurable", {}).get("is_plan_mode", False)
-    print(f"thinking_enabled: {thinking_enabled}, model_name: {model_name}, is_plan_mode: {is_plan_mode}")
+    subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
+    print(f"thinking_enabled: {thinking_enabled}, model_name: {model_name}, is_plan_mode: {is_plan_mode}, subagent_enabled: {subagent_enabled}")
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled),
-        tools=get_available_tools(model_name=model_name),
+        tools=get_available_tools(model_name=model_name, subagent_enabled=subagent_enabled),
         middleware=_build_middlewares(config),
-        system_prompt=apply_prompt_template(),
+        system_prompt=apply_prompt_template(subagent_enabled=subagent_enabled),
         state_schema=ThreadState,
     )

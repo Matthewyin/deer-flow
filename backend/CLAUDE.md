@@ -40,6 +40,17 @@ deer-flow/
     └── custom/                # Custom skills (gitignored)
 ```
 
+## Important Development Guidelines
+
+### Documentation Update Policy
+**CRITICAL: Always update README.md and CLAUDE.md after every code change**
+
+When making code changes, you MUST update the relevant documentation:
+- Update `README.md` for user-facing changes (features, setup, usage instructions)
+- Update `CLAUDE.md` for development changes (architecture, commands, workflows, internal systems)
+- Keep documentation synchronized with the codebase at all times
+- Ensure accuracy and timeliness of all documentation
+
 ## Commands
 
 **Root directory** (for full application):
@@ -202,7 +213,49 @@ Configuration priority:
   5. `TitleMiddleware` - Generates conversation titles
   6. `TodoListMiddleware` - Tracks multi-step tasks (if plan_mode enabled)
   7. `ViewImageMiddleware` - Injects image details for vision models
-  8. `ClarificationMiddleware` - Handles clarification requests (must be last)
+  8. `MemoryMiddleware` - Automatic context retention and personalization (if enabled)
+  9. `ClarificationMiddleware` - Handles clarification requests (must be last)
+
+**Memory System** (`src/agents/memory/`)
+- LLM-powered personalization layer that automatically extracts and stores user context across conversations
+- Components:
+  - `updater.py` - LLM-based memory updates with fact extraction and file I/O
+  - `queue.py` - Debounced update queue for batching and performance optimization
+  - `prompt.py` - Prompt templates and formatting utilities for memory updates
+- `MemoryMiddleware` (`src/agents/middlewares/memory_middleware.py`) - Queues conversations for memory updates
+- Gateway API (`src/gateway/routers/memory.py`) - REST endpoints for memory management
+- Storage: JSON file at `backend/.deer-flow/memory.json`
+
+**Memory Data Structure**:
+- **User Context** (current state):
+  - `workContext` - Work-related information (job, projects, technologies)
+  - `personalContext` - Preferences, communication style, background
+  - `topOfMind` - Current focus areas and immediate priorities
+- **History** (temporal context):
+  - `recentMonths` - Recent activities and discussions
+  - `earlierContext` - Important historical context
+  - `longTermBackground` - Persistent background information
+- **Facts** (structured knowledge):
+  - Discrete facts with categories: `preference`, `knowledge`, `context`, `behavior`, `goal`
+  - Each fact includes: `id`, `content`, `category`, `confidence` (0-1), `createdAt`, `source` (thread ID)
+  - Confidence threshold (default 0.7) filters low-quality facts
+  - Max facts limit (default 100) keeps highest-confidence facts
+
+**Memory Workflow**:
+1. **Post-Interaction**: `MemoryMiddleware` filters messages (user inputs + final AI responses only) and queues conversation
+2. **Debounced Processing**: Queue waits 30s (configurable), batches multiple updates, resets timer on new updates
+3. **LLM-Based Update**: Background thread loads memory, formats conversation, invokes LLM to extract:
+   - Updated context summaries (1-3 sentences each)
+   - New facts with confidence scores and categories
+   - Facts to remove (contradictions)
+4. **Storage**: Applies updates atomically to `memory.json` with cache invalidation (mtime-based)
+5. **Injection**: Next interaction loads memory, formats top 15 facts + context, injects into `<memory>` tags in system prompt
+
+**Memory API Endpoints** (`/api/memory`):
+- `GET /api/memory` - Retrieve current memory data
+- `POST /api/memory/reload` - Force reload from file (invalidates cache)
+- `GET /api/memory/config` - Get memory configuration
+- `GET /api/memory/status` - Get both config and data
 
 ### Config Schema
 
@@ -215,6 +268,17 @@ Models, tools, sandbox providers, skills, and middleware settings are configured
 - `skills.container_path`: Container mount path (default: `/mnt/skills`)
 - `title`: Automatic thread title generation configuration
 - `summarization`: Automatic conversation summarization configuration
+- `subagents`: Subagent (task tool) configuration
+  - `enabled`: Master switch to enable/disable subagents (boolean, default: true)
+- `memory`: Memory system configuration
+  - `enabled`: Master switch (boolean)
+  - `storage_path`: Path to memory.json file (relative to backend/)
+  - `debounce_seconds`: Wait time before processing updates (default: 30)
+  - `model_name`: LLM model for memory updates (null = use default model)
+  - `max_facts`: Maximum facts to store (default: 100)
+  - `fact_confidence_threshold`: Minimum confidence to store fact (default: 0.7)
+  - `injection_enabled`: Inject memory into system prompt (boolean)
+  - `max_injection_tokens`: Token limit for memory injection (default: 2000)
 
 **Extensions Configuration Schema** (`extensions_config.json`):
 - `mcpServers`: Map of MCP server name to configuration
@@ -306,6 +370,29 @@ For models with `supports_vision: true`:
 - `ViewImageMiddleware` processes images in conversation
 - `view_image_tool` added to agent's toolset
 - Images automatically converted and injected into state
+
+### Memory System
+
+Persistent context retention and personalization across conversations:
+- **Automatic Extraction**: LLM analyzes conversations to extract user context, facts, and preferences
+- **Structured Storage**: Maintains user context, history, and confidence-scored facts in JSON format
+- **Smart Filtering**: Only processes meaningful messages (user inputs + final AI responses)
+- **Debounced Updates**: Batches updates to minimize LLM calls (configurable wait time)
+- **System Prompt Injection**: Automatically injects relevant memory context into agent prompts
+- **Cache Optimization**: File modification time-based cache invalidation for external edits
+- **Thread Safety**: Locks protect queue and cache for concurrent access
+- **REST API**: Full CRUD operations via `/api/memory` endpoints
+- **Frontend Integration**: Memory settings page for viewing and managing memory data
+
+**Configuration**: Controlled via `memory` section in `config.yaml`
+- Enable/disable memory system
+- Configure storage path, debounce timing, fact limits
+- Control system prompt injection and token limits
+- Set confidence thresholds for fact storage
+
+**Storage Location**: `backend/.deer-flow/memory.json`
+
+See configuration section for detailed settings.
 
 ## Code Style
 

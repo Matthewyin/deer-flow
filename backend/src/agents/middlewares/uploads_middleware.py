@@ -151,8 +151,9 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
             State updates including uploaded files list.
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         thread_id = runtime.context.get("thread_id")
         if thread_id is None:
             return None
@@ -172,7 +173,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                     logger.info(f"Found previously shown files: {extracted}")
 
         logger.info(f"Total shown files from history: {shown_files}")
-        
+
         # List only newly uploaded files
         files = self._list_newly_uploaded_files(thread_id, shown_files)
         logger.info(f"Newly uploaded files to inject: {[f['filename'] for f in files]}")
@@ -189,7 +190,7 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
 
         # Create files message and prepend to the last human message content
         files_message = self._create_files_message(files)
-        
+
         # Extract original content - handle both string and list formats
         original_content = ""
         if isinstance(last_message.content, str):
@@ -201,9 +202,9 @@ class UploadsMiddleware(AgentMiddleware[UploadsMiddlewareState]):
                 if isinstance(block, dict) and block.get("type") == "text":
                     text_parts.append(block.get("text", ""))
             original_content = "\n".join(text_parts)
-        
+
         logger.info(f"Original message content: {original_content[:100] if original_content else '(empty)'}")
-        
+
         # Create new message with combined content
         updated_message = HumanMessage(
             content=f"{files_message}\n\n{original_content}",

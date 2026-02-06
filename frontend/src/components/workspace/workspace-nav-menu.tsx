@@ -32,11 +32,18 @@ import { SettingsDialog } from "./settings";
 
 export function WorkspaceNavMenu() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDefaultSection, setSettingsDefaultSection] = useState<
+    "appearance" | "memory" | "tools" | "skills" | "notification" | "about"
+  >("appearance");
   const { open: isSidebarOpen } = useSidebar();
   const { t } = useI18n();
   return (
     <>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        defaultSection={settingsDefaultSection}
+      />
       <SidebarMenu className="w-full">
         <SidebarMenuItem>
           <DropdownMenu>
@@ -64,7 +71,12 @@ export function WorkspaceNavMenu() {
               sideOffset={4}
             >
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSettingsDefaultSection("appearance");
+                    setSettingsOpen(true);
+                  }}
+                >
                   <Settings2Icon />
                   {t.common.settings}
                 </DropdownMenuItem>
@@ -108,7 +120,12 @@ export function WorkspaceNavMenu() {
                 </a>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setSettingsDefaultSection("about");
+                  setSettingsOpen(true);
+                }}
+              >
                 <InfoIcon />
                 {t.workspace.about}
               </DropdownMenuItem>

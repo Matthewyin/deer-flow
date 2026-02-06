@@ -62,7 +62,11 @@ export interface Translations {
     reasoningModeDescription: string;
     proMode: string;
     proModeDescription: string;
+    ultraMode: string;
+    ultraModeDescription: string;
     searchModels: string;
+    surpriseMe: string;
+    surpriseMePrompt: string;
     suggestions: {
       suggestion: string;
       prompt: string;
@@ -161,7 +165,7 @@ export interface Translations {
       tools: string;
       skills: string;
       notification: string;
-      acknowledge: string;
+      about: string;
     };
     memory: {
       title: string;

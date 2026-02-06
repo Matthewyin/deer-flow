@@ -2,6 +2,13 @@
 
 from typing import Any
 
+try:
+    import tiktoken
+
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+
 # Prompt template for updating memory based on conversation
 MEMORY_UPDATE_PROMPT = """You are a memory management system. Your task is to analyze a conversation and update the user's memory profile.
 
@@ -17,22 +24,60 @@ New Conversation to Process:
 
 Instructions:
 1. Analyze the conversation for important information about the user
-2. Extract relevant facts, preferences, and context
-3. Update the memory sections as needed:
-   - workContext: User's work-related information (job, projects, tools, technologies)
-   - personalContext: Personal preferences, communication style, background
-   - topOfMind: Current focus areas, ongoing tasks, immediate priorities
+2. Extract relevant facts, preferences, and context with specific details (numbers, names, technologies)
+3. Update the memory sections as needed following the detailed length guidelines below
 
-4. For facts extraction:
-   - Extract specific, verifiable facts about the user
-   - Assign appropriate categories: preference, knowledge, context, behavior, goal
-   - Estimate confidence (0.0-1.0) based on how explicit the information is
-   - Avoid duplicating existing facts
+Memory Section Guidelines:
 
-5. Update history sections:
-   - recentMonths: Summary of recent activities and discussions
-   - earlierContext: Important historical context
-   - longTermBackground: Persistent background information
+**User Context** (Current state - concise summaries):
+- workContext: Professional role, company, key projects, main technologies (2-3 sentences)
+  Example: Core contributor, project names with metrics (16k+ stars), technical stack
+- personalContext: Languages, communication preferences, key interests (1-2 sentences)
+  Example: Bilingual capabilities, specific interest areas, expertise domains
+- topOfMind: Multiple ongoing focus areas and priorities (3-5 sentences, detailed paragraph)
+  Example: Primary project work, parallel technical investigations, ongoing learning/tracking
+  Include: Active implementation work, troubleshooting issues, market/research interests
+  Note: This captures SEVERAL concurrent focus areas, not just one task
+
+**History** (Temporal context - rich paragraphs):
+- recentMonths: Detailed summary of recent activities (4-6 sentences or 1-2 paragraphs)
+  Timeline: Last 1-3 months of interactions
+  Include: Technologies explored, projects worked on, problems solved, interests demonstrated
+- earlierContext: Important historical patterns (3-5 sentences or 1 paragraph)
+  Timeline: 3-12 months ago
+  Include: Past projects, learning journeys, established patterns
+- longTermBackground: Persistent background and foundational context (2-4 sentences)
+  Timeline: Overall/foundational information
+  Include: Core expertise, longstanding interests, fundamental working style
+
+**Facts Extraction**:
+- Extract specific, quantifiable details (e.g., "16k+ GitHub stars", "200+ datasets")
+- Include proper nouns (company names, project names, technology names)
+- Preserve technical terminology and version numbers
+- Categories:
+  * preference: Tools, styles, approaches user prefers/dislikes
+  * knowledge: Specific expertise, technologies mastered, domain knowledge
+  * context: Background facts (job title, projects, locations, languages)
+  * behavior: Working patterns, communication habits, problem-solving approaches
+  * goal: Stated objectives, learning targets, project ambitions
+- Confidence levels:
+  * 0.9-1.0: Explicitly stated facts ("I work on X", "My role is Y")
+  * 0.7-0.8: Strongly implied from actions/discussions
+  * 0.5-0.6: Inferred patterns (use sparingly, only for clear patterns)
+
+**What Goes Where**:
+- workContext: Current job, active projects, primary tech stack
+- personalContext: Languages, personality, interests outside direct work tasks
+- topOfMind: Multiple ongoing priorities and focus areas user cares about recently (gets updated most frequently)
+  Should capture 3-5 concurrent themes: main work, side explorations, learning/tracking interests
+- recentMonths: Detailed account of recent technical explorations and work
+- earlierContext: Patterns from slightly older interactions still relevant
+- longTermBackground: Unchanging foundational facts about the user
+
+**Multilingual Content**:
+- Preserve original language for proper nouns and company names
+- Keep technical terms in their original form (DeepSeek, LangGraph, etc.)
+- Note language capabilities in personalContext
 
 Output Format (JSON):
 {{
@@ -54,11 +99,15 @@ Output Format (JSON):
 
 Important Rules:
 - Only set shouldUpdate=true if there's meaningful new information
-- Keep summaries concise (1-3 sentences each)
-- Only add facts that are clearly stated or strongly implied
+- Follow length guidelines: workContext/personalContext are concise (1-3 sentences), topOfMind and history sections are detailed (paragraphs)
+- Include specific metrics, version numbers, and proper nouns in facts
+- Only add facts that are clearly stated (0.9+) or strongly implied (0.7+)
 - Remove facts that are contradicted by new information
-- Preserve existing information that isn't contradicted
-- Focus on information useful for future interactions
+- When updating topOfMind, integrate new focus areas while removing completed/abandoned ones
+  Keep 3-5 concurrent focus themes that are still active and relevant
+- For history sections, integrate new information chronologically into appropriate time period
+- Preserve technical accuracy - keep exact names of technologies, companies, projects
+- Focus on information useful for future interactions and personalization
 
 Return ONLY valid JSON, no explanation or markdown."""
 
@@ -91,12 +140,34 @@ Rules:
 Return ONLY valid JSON."""
 
 
+def _count_tokens(text: str, encoding_name: str = "cl100k_base") -> int:
+    """Count tokens in text using tiktoken.
+
+    Args:
+        text: The text to count tokens for.
+        encoding_name: The encoding to use (default: cl100k_base for GPT-4/3.5).
+
+    Returns:
+        The number of tokens in the text.
+    """
+    if not TIKTOKEN_AVAILABLE:
+        # Fallback to character-based estimation if tiktoken is not available
+        return len(text) // 4
+
+    try:
+        encoding = tiktoken.get_encoding(encoding_name)
+        return len(encoding.encode(text))
+    except Exception:
+        # Fallback to character-based estimation on error
+        return len(text) // 4
+
+
 def format_memory_for_injection(memory_data: dict[str, Any], max_tokens: int = 2000) -> str:
     """Format memory data for injection into system prompt.
 
     Args:
         memory_data: The memory data dictionary.
-        max_tokens: Maximum tokens to use (approximate via character count).
+        max_tokens: Maximum tokens to use (counted via tiktoken for accuracy).
 
     Returns:
         Formatted memory string for system prompt injection.
@@ -142,33 +213,19 @@ def format_memory_for_injection(memory_data: dict[str, Any], max_tokens: int = 2
         if history_sections:
             sections.append("History:\n" + "\n".join(f"- {s}" for s in history_sections))
 
-    # Format facts (most relevant ones)
-    facts = memory_data.get("facts", [])
-    if facts:
-        # Sort by confidence and take top facts
-        sorted_facts = sorted(facts, key=lambda f: f.get("confidence", 0), reverse=True)
-        # Limit to avoid too much content
-        top_facts = sorted_facts[:15]
-
-        fact_lines = []
-        for fact in top_facts:
-            content = fact.get("content", "")
-            category = fact.get("category", "")
-            if content:
-                fact_lines.append(f"- [{category}] {content}")
-
-        if fact_lines:
-            sections.append("Known Facts:\n" + "\n".join(fact_lines))
-
     if not sections:
         return ""
 
     result = "\n\n".join(sections)
 
-    # Rough token limit (approximate 4 chars per token)
-    max_chars = max_tokens * 4
-    if len(result) > max_chars:
-        result = result[:max_chars] + "\n..."
+    # Use accurate token counting with tiktoken
+    token_count = _count_tokens(result)
+    if token_count > max_tokens:
+        # Truncate to fit within token limit
+        # Estimate characters to remove based on token ratio
+        char_per_token = len(result) / token_count
+        target_chars = int(max_tokens * char_per_token * 0.95)  # 95% to leave margin
+        result = result[:target_chars] + "\n..."
 
     return result
 

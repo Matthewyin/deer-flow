@@ -41,18 +41,25 @@ If you prefer running services locally:
    make install
    ```
 
-3. **Start services**:
+3. **(Optional) Pre-pull sandbox image**:
+   ```bash
+   # Recommended if using Docker/Container-based sandbox
+   make setup-sandbox
+   ```
+
+4. **Start services**:
    ```bash
    make dev
    ```
 
-4. **Access**: http://localhost:2026
+5. **Access**: http://localhost:2026
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed local development guide.
 
 ## Features
 
 - 🤖 **LangGraph-based Agents** - Multi-agent orchestration with sophisticated workflows
+- 🧠 **Persistent Memory** - LLM-powered context retention across conversations with automatic fact extraction
 - 🔧 **Model Context Protocol (MCP)** - Extensible tool integration
 - 🎯 **Skills System** - Reusable agent capabilities
 - 🛡️ **Sandbox Execution** - Safe code execution environment

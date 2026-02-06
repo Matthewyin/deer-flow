@@ -14,7 +14,7 @@ export default function WorkspaceLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const [settings, setSettings] = useLocalSettings();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => !settings.layout.sidebar_collapsed);
   useEffect(() => {
     setOpen(!settings.layout.sidebar_collapsed);
   }, [settings.layout.sidebar_collapsed]);

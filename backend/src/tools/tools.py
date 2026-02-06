@@ -4,7 +4,7 @@ from langchain.tools import BaseTool
 
 from src.config import get_app_config
 from src.reflection import resolve_variable
-from src.tools.builtins import ask_clarification_tool, present_file_tool, view_image_tool
+from src.tools.builtins import ask_clarification_tool, present_file_tool, task_tool, view_image_tool
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,18 @@ BUILTIN_TOOLS = [
     ask_clarification_tool,
 ]
 
+SUBAGENT_TOOLS = [
+    task_tool,
+    # task_status_tool is no longer exposed to LLM (backend handles polling internally)
+]
 
-def get_available_tools(groups: list[str] | None = None, include_mcp: bool = True, model_name: str | None = None) -> list[BaseTool]:
+
+def get_available_tools(
+    groups: list[str] | None = None,
+    include_mcp: bool = True,
+    model_name: str | None = None,
+    subagent_enabled: bool = False,
+) -> list[BaseTool]:
     """Get all available tools from config.
 
     Note: MCP tools should be initialized at application startup using
@@ -24,6 +34,7 @@ def get_available_tools(groups: list[str] | None = None, include_mcp: bool = Tru
         groups: Optional list of tool groups to filter by.
         include_mcp: Whether to include tools from MCP servers (default: True).
         model_name: Optional model name to determine if vision tools should be included.
+        subagent_enabled: Whether to include subagent tools (task, task_status).
 
     Returns:
         List of available tools.
@@ -52,13 +63,19 @@ def get_available_tools(groups: list[str] | None = None, include_mcp: bool = Tru
         except Exception as e:
             logger.error(f"Failed to get cached MCP tools: {e}")
 
-    # Conditionally add view_image_tool only if the model supports vision
+    # Conditionally add tools based on config
     builtin_tools = BUILTIN_TOOLS.copy()
+
+    # Add subagent tools only if enabled via runtime parameter
+    if subagent_enabled:
+        builtin_tools.extend(SUBAGENT_TOOLS)
+        logger.info("Including subagent tools (task)")
 
     # If no model_name specified, use the first model (default)
     if model_name is None and config.models:
         model_name = config.models[0].name
 
+    # Add view_image_tool only if the model supports vision
     model_config = config.get_model_config(model_name) if model_name else None
     if model_config is not None and model_config.supports_vision:
         builtin_tools.append(view_image_tool)

@@ -21,9 +21,9 @@ export interface LocalSettings {
   };
   context: Omit<
     AgentThreadContext,
-    "thread_id" | "is_plan_mode" | "thinking_enabled"
+    "thread_id" | "is_plan_mode" | "thinking_enabled" | "subagent_enabled"
   > & {
-    mode: "flash" | "thinking" | "pro" | undefined;
+    mode: "flash" | "thinking" | "pro" | "ultra" | undefined;
   };
   layout: {
     sidebar_collapsed: boolean;

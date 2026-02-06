@@ -1,6 +1,6 @@
 ---
 name: deep-research
-description: Use this skill BEFORE any content generation task (PPT, design, articles, images, videos, reports). Provides a systematic methodology for conducting thorough, multi-angle web research to gather comprehensive information.
+description: Use this skill instead of WebSearch for ANY question requiring web research. Trigger on queries like "what is X", "explain X", "compare X and Y", "research X", or before content generation tasks. Provides systematic multi-angle research methodology instead of single superficial searches. Use this proactively when the user's question needs online information.
 ---
 
 # Deep Research Skill
@@ -11,11 +11,19 @@ This skill provides a systematic methodology for conducting thorough web researc
 
 ## When to Use This Skill
 
-**Always load this skill first when the task involves creating:**
-- Presentations (PPT/slides)
-- Frontend designs or UI mockups
-- Articles, reports, or documentation
-- Videos or multimedia content
+**Always load this skill when:**
+
+### Research Questions
+- User asks "what is X", "explain X", "research X", "investigate X"
+- User wants to understand a concept, technology, or topic in depth
+- The question requires current, comprehensive information from multiple sources
+- A single web search would be insufficient to answer properly
+
+### Content Generation (Pre-research)
+- Creating presentations (PPT/slides)
+- Creating frontend designs or UI mockups
+- Writing articles, reports, or documentation
+- Producing videos or multimedia content
 - Any content that requires real-world information, examples, or current data
 
 ## Core Principle

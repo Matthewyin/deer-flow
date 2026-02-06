@@ -77,7 +77,11 @@ export const zhCN: Translations = {
     reasoningModeDescription: "思考后再行动，在时间与准确性之间取得平衡",
     proMode: "专业",
     proModeDescription: "思考、计划再执行，获得更精准的结果，可能需要更多时间",
+    ultraMode: "超级",
+    ultraModeDescription: "专业模式加子代理，适用于复杂的多步骤任务，功能最强大",
     searchModels: "搜索模型...",
+    surpriseMe: "小惊喜",
+    surpriseMePrompt: "给我一个小惊喜吧",
     suggestions: [
       {
         suggestion: "写作",
@@ -209,7 +213,7 @@ export const zhCN: Translations = {
       tools: "工具",
       skills: "技能",
       notification: "通知",
-      acknowledge: "致谢",
+      about: "关于",
     },
     memory: {
       title: "记忆",

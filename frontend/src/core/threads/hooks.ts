@@ -135,6 +135,7 @@ export function useSubmitThread({
           threadId: isNewThread ? threadId! : undefined,
           streamSubgraphs: true,
           streamResumable: true,
+          streamMode: ["values", "messages-tuple", "custom"],
           config: {
             recursion_limit: 1000,
           },

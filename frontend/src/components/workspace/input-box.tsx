@@ -7,6 +7,8 @@ import {
   LightbulbIcon,
   PaperclipIcon,
   PlusIcon,
+  SparklesIcon,
+  RocketIcon,
   ZapIcon,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -30,6 +32,7 @@ import {
   usePromptInputController,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
+import { ConfettiButton } from "@/components/ui/confetti-button";
 import {
   DropdownMenuGroup,
   DropdownMenuLabel,
@@ -78,9 +81,9 @@ export function InputBox({
   disabled?: boolean;
   context: Omit<
     AgentThreadContext,
-    "thread_id" | "is_plan_mode" | "thinking_enabled"
+    "thread_id" | "is_plan_mode" | "thinking_enabled" | "subagent_enabled"
   > & {
-    mode: "flash" | "thinking" | "pro" | undefined;
+    mode: "flash" | "thinking" | "pro" | "ultra" | undefined;
   };
   extraHeader?: React.ReactNode;
   isNewThread?: boolean;
@@ -88,9 +91,9 @@ export function InputBox({
   onContextChange?: (
     context: Omit<
       AgentThreadContext,
-      "thread_id" | "is_plan_mode" | "thinking_enabled"
+      "thread_id" | "is_plan_mode" | "thinking_enabled" | "subagent_enabled"
     > & {
-      mode: "flash" | "thinking" | "pro" | undefined;
+      mode: "flash" | "thinking" | "pro" | "ultra" | undefined;
     },
   ) => void;
   onSubmit?: (message: PromptInputMessage) => void;
@@ -129,7 +132,7 @@ export function InputBox({
     [onContextChange, context],
   );
   const handleModeSelect = useCallback(
-    (mode: "flash" | "thinking" | "pro") => {
+    (mode: "flash" | "thinking" | "pro" | "ultra") => {
       onContextChange?.({
         ...context,
         mode,
@@ -203,11 +206,15 @@ export function InputBox({
                 {context.mode === "pro" && (
                   <GraduationCapIcon className="size-3" />
                 )}
+                {context.mode === "ultra" && (
+                  <RocketIcon className="size-3" />
+                )}
               </div>
               <div className="text-xs font-normal">
                 {(context.mode === "flash" && t.inputBox.flashMode) ||
                   (context.mode === "thinking" && t.inputBox.reasoningMode) ||
-                  (context.mode === "pro" && t.inputBox.proMode)}
+                  (context.mode === "pro" && t.inputBox.proMode) ||
+                  (context.mode === "ultra" && t.inputBox.ultraMode)}
               </div>
             </PromptInputActionMenuTrigger>
             <PromptInputActionMenuContent className="w-80">
@@ -304,6 +311,34 @@ export function InputBox({
                       <div className="ml-auto size-4" />
                     )}
                   </PromptInputActionMenuItem>
+                  <PromptInputActionMenuItem
+                    className={cn(
+                      context.mode === "ultra"
+                        ? "text-accent-foreground"
+                        : "text-muted-foreground/65",
+                    )}
+                    onSelect={() => handleModeSelect("ultra")}
+                  >
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1 font-bold">
+                        <RocketIcon
+                          className={cn(
+                            "mr-2 size-4",
+                            context.mode === "ultra" && "text-accent-foreground",
+                          )}
+                        />
+                        {t.inputBox.ultraMode}
+                      </div>
+                      <div className="pl-7 text-xs">
+                        {t.inputBox.ultraModeDescription}
+                      </div>
+                    </div>
+                    {context.mode === "ultra" ? (
+                      <CheckIcon className="ml-auto size-4" />
+                    ) : (
+                      <div className="ml-auto size-4" />
+                    )}
+                  </PromptInputActionMenuItem>
                 </PromptInputActionMenu>
               </DropdownMenuGroup>
             </PromptInputActionMenuContent>
@@ -386,6 +421,14 @@ function SuggestionList() {
   );
   return (
     <Suggestions className="w-fit">
+      <ConfettiButton
+        className="text-muted-foreground cursor-pointer rounded-full px-4 text-xs font-normal"
+        variant="outline"
+        size="sm"
+        onClick={() => handleSuggestionClick(t.inputBox.surpriseMePrompt)}
+      >
+        <SparklesIcon className="size-4" /> {t.inputBox.surpriseMe}
+      </ConfettiButton>
       {t.inputBox.suggestions.map((suggestion) => (
         <Suggestion
           key={suggestion.suggestion}

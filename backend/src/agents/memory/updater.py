@@ -273,9 +273,7 @@ class MemoryUpdater:
         # Remove facts
         facts_to_remove = set(update_data.get("factsToRemove", []))
         if facts_to_remove:
-            current_memory["facts"] = [
-                f for f in current_memory.get("facts", []) if f.get("id") not in facts_to_remove
-            ]
+            current_memory["facts"] = [f for f in current_memory.get("facts", []) if f.get("id") not in facts_to_remove]
 
         # Add new facts
         new_facts = update_data.get("newFacts", [])
@@ -304,9 +302,7 @@ class MemoryUpdater:
         return current_memory
 
 
-def update_memory_from_conversation(
-    messages: list[Any], thread_id: str | None = None
-) -> bool:
+def update_memory_from_conversation(messages: list[Any], thread_id: str | None = None) -> bool:
     """Convenience function to update memory from a conversation.
 
     Args:

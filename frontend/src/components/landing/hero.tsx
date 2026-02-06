@@ -60,8 +60,7 @@ export function Hero({ className }: { className?: string }) {
           className="mt-8 scale-105 text-center text-2xl text-shadow-sm"
           style={{ color: "rgb(182,182,188)" }}
         >
-          DeerFlow is an open-source SuperAgent that researches, codes, and
-          creates.
+          An open-source SuperAgent harness that researches, codes, and creates.
           <br />
           With the help of sandboxes, memories, tools and skills, it handles
           <br />

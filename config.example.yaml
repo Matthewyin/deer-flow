@@ -144,17 +144,20 @@ tools:
 sandbox:
   use: src.sandbox.local:LocalSandboxProvider
 
-# Option 2: Docker-based AIO Sandbox
-# Executes commands in isolated Docker containers
+# Option 2: Container-based AIO Sandbox
+# Executes commands in isolated containers (Docker or Apple Container)
+# On macOS: Automatically prefers Apple Container if available, falls back to Docker
+# On other platforms: Uses Docker
 # Uncomment to use:
 # sandbox:
 #   use: src.community.aio_sandbox:AioSandboxProvider
 #
-#   # Optional: Use existing sandbox at this URL (no Docker container will be started)
+#   # Optional: Use existing sandbox at this URL (no container will be started)
 #   # base_url: http://localhost:8080
 #
-#   # Optional: Docker image to use
+#   # Optional: Container image to use (works with both Docker and Apple Container)
 #   # Default: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
+#   # Recommended: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest (works on both x86_64 and arm64)
 #   # image: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
 #
 #   # Optional: Base port for sandbox containers (default: 8080)
@@ -279,6 +282,9 @@ summarization:
 #
 # For more information, see: https://modelcontextprotocol.io
 
+# ============================================================================
+# Memory Configuration
+# ============================================================================
 # Global memory mechanism
 # Stores user context and conversation history for personalized responses
 memory:
