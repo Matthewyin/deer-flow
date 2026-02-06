@@ -77,25 +77,43 @@ export function MessageListItem({
 
 /**
  * Custom link component that handles citations and external links
- * Only links that are in citationMap are rendered as CitationLink badges
- * Other links (project URLs, regular links) are rendered as plain links
+ * - During streaming (isLoadingCitations=true): all external links render as badges
+ * - After streaming: only links in citationMap render as badges
+ * - Human messages and non-citation links render as plain links
  */
 function MessageLink({
   href,
   children,
   citationMap,
   isHuman,
+  isLoadingCitations,
 }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
   citationMap: Map<string, Citation>;
   isHuman: boolean;
+  isLoadingCitations: boolean;
 }) {
   if (!href) return <span>{children}</span>;
 
+  // Human messages always render as plain links
+  if (isHuman) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline underline-offset-2 hover:no-underline"
+      >
+        {children}
+      </a>
+    );
+  }
+
   const citation = citationMap.get(href);
+  const isExternalLink = href.startsWith("http://") || href.startsWith("https://");
   
-  // Only render as CitationLink badge if it's a citation (in citationMap)
-  // This ensures project URLs and regular links are not rendered as badges
-  if (citation && !isHuman) {
+  // During streaming: render all external links as badges (citations not yet fully loaded)
+  // After streaming: only render links in citationMap as badges
+  if (citation || (isLoadingCitations && isExternalLink)) {
     return (
       <CitationLink citation={citation} href={href}>
         {children}
@@ -103,7 +121,7 @@ function MessageLink({
     );
   }
 
-  // All other links (including project URLs) render as plain links
+  // Non-citation links render as plain links
   return (
     <a
       href={href}
@@ -202,12 +220,12 @@ function MessageContent_({
   // Shared markdown components
   const markdownComponents = useMemo(() => ({
     a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <MessageLink {...props} citationMap={citationMap} isHuman={isHuman} />
+      <MessageLink {...props} citationMap={citationMap} isHuman={isHuman} isLoadingCitations={isLoadingCitations} />
     ),
     img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
       <MessageImage {...props} threadId={thread_id} maxWidth={isHuman ? "full" : "90%"} />
     ),
-  }), [citationMap, thread_id, isHuman]);
+  }), [citationMap, thread_id, isHuman, isLoadingCitations]);
 
   // Render message response
   // Human messages use humanMessagePlugins (no autolink) to prevent URL bleeding into adjacent text
