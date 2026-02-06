@@ -332,7 +332,7 @@ function UploadedFilesList({
   if (files.length === 0) return null;
 
   return (
-    <div className="mb-2 flex flex-wrap gap-2">
+    <div className="mb-2 flex flex-wrap justify-end gap-2">
       {files.map((file, index) => (
         <UploadedFileCard
           key={`${file.path}-${index}`}
