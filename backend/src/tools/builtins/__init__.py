@@ -1,6 +1,6 @@
 from .clarification_tool import ask_clarification_tool
 from .present_file_tool import present_file_tool
-from .task_tool import task_status_tool, task_tool
+from .task_tool import task_tool
 from .view_image_tool import view_image_tool
 
 __all__ = [
@@ -8,5 +8,4 @@ __all__ = [
     "ask_clarification_tool",
     "view_image_tool",
     "task_tool",
-    "task_status_tool",
 ]

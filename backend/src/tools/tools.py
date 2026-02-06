@@ -4,7 +4,7 @@ from langchain.tools import BaseTool
 
 from src.config import get_app_config
 from src.reflection import resolve_variable
-from src.tools.builtins import ask_clarification_tool, present_file_tool, task_status_tool, task_tool, view_image_tool
+from src.tools.builtins import ask_clarification_tool, present_file_tool, task_tool, view_image_tool
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ BUILTIN_TOOLS = [
 
 SUBAGENT_TOOLS = [
     task_tool,
-    task_status_tool,
+    # task_status_tool is no longer exposed to LLM (backend handles polling internally)
 ]
 
 
@@ -69,7 +69,7 @@ def get_available_tools(
     # Add subagent tools only if enabled via runtime parameter
     if subagent_enabled:
         builtin_tools.extend(SUBAGENT_TOOLS)
-        logger.info("Including subagent tools (task, task_status)")
+        logger.info("Including subagent tools (task)")
 
     # If no model_name specified, use the first model (default)
     if model_name is None and config.models:

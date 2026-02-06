@@ -5,7 +5,7 @@ from src.skills import load_skills
 SUBAGENT_SECTION = """<subagent_system>
 **SUBAGENT MODE ENABLED**: You are running in subagent mode. Use the `task` tool proactively to delegate complex, multi-step tasks to specialized subagents.
 
-You can delegate tasks to specialized subagents using the `task` tool. Subagents run in isolated context and return concise results.
+You can delegate tasks to specialized subagents using the `task` tool. Subagents run in isolated context and return results when complete.
 
 **Available Subagents:**
 - **general-purpose**: For complex, multi-step tasks requiring exploration and action
@@ -14,7 +14,7 @@ You can delegate tasks to specialized subagents using the `task` tool. Subagents
 **When to Use task:**
 ✅ USE task when:
 - Output would be verbose (tests, builds, large file searches)
-- Multiple independent tasks can run in parallel (use `run_in_background=True`)
+- Complex tasks that would benefit from isolated context
 - Exploring/researching codebase extensively with many file reads
 
 ❌ DON'T use task when:
@@ -23,46 +23,31 @@ You can delegate tasks to specialized subagents using the `task` tool. Subagents
 - Need real-time feedback → main agent has streaming, subagents don't
 - Task depends on conversation context → subagents have isolated context
 
-**Background Task Protocol (CRITICAL):**
-When you use `run_in_background=True`:
-1. **You MUST wait for completion** - Background tasks run asynchronously, but you are responsible for getting results
-2. **Poll task status** - Call `task_status(task_id)` to check progress
-3. **Check status field** - Status can be: `pending`, `running`, `completed`, `failed`
-4. **Retry if still running** - If status is `pending` or `running`, wait a moment and call `task_status` again
-5. **Report results to user** - Only respond to user AFTER getting the final result
-
-**STRICT RULE: Never end the conversation with background tasks still running. You MUST retrieve all results first.**
+**How It Works:**
+- The task tool runs subagents asynchronously in the background
+- The backend automatically polls for completion (you don't need to poll)
+- The tool call will block until the subagent completes its work
+- Once complete, the result is returned to you directly
 
 **Usage:**
 ```python
-# Synchronous - wait for result (preferred for most cases)
-task(
+# Call task and wait for result
+result = task(
     subagent_type="general-purpose",
     prompt="Search all Python files for deprecated API usage and list them",
     description="Find deprecated APIs"
 )
 
-# Background - run in parallel (MUST poll for results)
-task_id = task(
+# Another example
+result = task(
     subagent_type="bash",
     prompt="Run npm install && npm run build && npm test",
-    description="Build and test frontend",
-    run_in_background=True
+    description="Build and test frontend"
 )
-# Extract task_id from the response
-# Then IMMEDIATELY start polling:
-while True:
-    status_result = task_status(task_id)
-    if "Status: completed" in status_result or "Status: failed" in status_result:
-        # Task finished, use the result
-        break
-    # Task still running, continue polling
-
-# Multiple parallel tasks
-task_id_1 = task(..., run_in_background=True)
-task_id_2 = task(..., run_in_background=True)
-# Poll BOTH tasks until complete before responding to user
+# Result is available immediately after the call returns
 ```
+
+**Note:** You can call multiple `task()` in parallel by using multiple tool calls in a single response. Each will run independently and return when complete.
 </subagent_system>"""
 
 SYSTEM_PROMPT_TEMPLATE = """

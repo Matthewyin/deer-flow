@@ -3,7 +3,8 @@
 import logging
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -57,8 +58,12 @@ class SubagentResult:
 _background_tasks: dict[str, SubagentResult] = {}
 _background_tasks_lock = threading.Lock()
 
-# Thread pool for background execution
-_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="subagent-")
+# Thread pool for background task scheduling and orchestration
+_scheduler_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="subagent-scheduler-")
+
+# Thread pool for actual subagent execution (with timeout support)
+# Larger pool to avoid blocking when scheduler submits execution tasks
+_execution_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="subagent-exec-")
 
 
 def _filter_tools(
@@ -214,6 +219,7 @@ class SubagentExecutor:
 
             # Run the agent using invoke for complete result
             # Note: invoke() runs until completion or interruption
+            # Timeout is handled at the execute_async level, not here
             final_state = agent.invoke(state, config=run_config)  # type: ignore[arg-type]
 
             logger.info(f"[trace={self.trace_id}] Subagent {self.config.name} completed execution")
@@ -290,26 +296,41 @@ class SubagentExecutor:
         with _background_tasks_lock:
             _background_tasks[task_id] = result
 
-        # Submit to thread pool
+        # Submit to scheduler pool
         def run_task():
             with _background_tasks_lock:
                 _background_tasks[task_id].status = SubagentStatus.RUNNING
                 _background_tasks[task_id].started_at = datetime.now()
 
             try:
-                exec_result = self.execute(task)
-                with _background_tasks_lock:
-                    _background_tasks[task_id].status = exec_result.status
-                    _background_tasks[task_id].result = exec_result.result
-                    _background_tasks[task_id].error = exec_result.error
-                    _background_tasks[task_id].completed_at = datetime.now()
+                # Submit execution to execution pool with timeout
+                execution_future: Future = _execution_pool.submit(self.execute, task)
+                try:
+                    # Wait for execution with timeout
+                    exec_result = execution_future.result(timeout=self.config.timeout_seconds)
+                    with _background_tasks_lock:
+                        _background_tasks[task_id].status = exec_result.status
+                        _background_tasks[task_id].result = exec_result.result
+                        _background_tasks[task_id].error = exec_result.error
+                        _background_tasks[task_id].completed_at = datetime.now()
+                except FuturesTimeoutError:
+                    logger.error(
+                        f"[trace={self.trace_id}] Subagent {self.config.name} execution timed out after {self.config.timeout_seconds}s"
+                    )
+                    with _background_tasks_lock:
+                        _background_tasks[task_id].status = SubagentStatus.FAILED
+                        _background_tasks[task_id].error = f"Execution timed out after {self.config.timeout_seconds} seconds"
+                        _background_tasks[task_id].completed_at = datetime.now()
+                    # Cancel the future (best effort - may not stop the actual execution)
+                    execution_future.cancel()
             except Exception as e:
+                logger.exception(f"[trace={self.trace_id}] Subagent {self.config.name} async execution failed")
                 with _background_tasks_lock:
                     _background_tasks[task_id].status = SubagentStatus.FAILED
                     _background_tasks[task_id].error = str(e)
                     _background_tasks[task_id].completed_at = datetime.now()
 
-        _executor.submit(run_task)
+        _scheduler_pool.submit(run_task)
         return task_id
 
 

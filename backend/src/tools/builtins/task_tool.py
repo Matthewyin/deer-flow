@@ -1,5 +1,7 @@
 """Task tool for delegating work to subagents."""
 
+import logging
+import time
 import uuid
 from typing import Literal
 
@@ -10,6 +12,8 @@ from src.agents.thread_state import ThreadState
 from src.subagents import SubagentExecutor, get_subagent_config
 from src.subagents.executor import SubagentStatus, get_background_task_result
 
+logger = logging.getLogger(__name__)
+
 
 @tool("task", parse_docstring=True)
 def task_tool(
@@ -18,7 +22,6 @@ def task_tool(
     prompt: str,
     description: str,
     max_turns: int | None = None,
-    run_in_background: bool = False,
 ) -> str:
     """Delegate a task to a specialized subagent that runs in its own context.
 
@@ -49,7 +52,6 @@ def task_tool(
         prompt: The task description for the subagent. Be specific and clear about what needs to be done.
         description: A short (3-5 word) description of the task for logging/display.
         max_turns: Optional maximum number of agent turns. Defaults to subagent's configured max.
-        run_in_background: If True, run the task in background and return a task ID immediately.
     """
     # Get subagent configuration
     config = get_subagent_config(subagent_type)
@@ -100,61 +102,39 @@ def task_tool(
         trace_id=trace_id,
     )
 
-    if run_in_background:
-        # Start background execution
-        task_id = executor.execute_async(prompt)
-        return f"""Background task started with ID: {task_id} (trace: {trace_id})
+    # Start background execution (always async to prevent blocking)
+    task_id = executor.execute_async(prompt)
+    logger.info(f"[trace={trace_id}] Started background task {task_id}, polling for completion...")
 
-⚠️ IMPORTANT: You MUST poll this task until completion before responding to the user.
+    # Poll for task completion in backend (removes need for LLM to poll)
+    poll_count = 0
+    last_status = None
 
-Next steps:
-1. Call task_status("{task_id}") to check progress
-2. If status is "pending" or "running", wait briefly and call task_status again
-3. Continue polling until status is "completed" or "failed"
-4. Only then report results to the user
+    while True:
+        result = get_background_task_result(task_id)
 
-DO NOT end the conversation without retrieving the task result."""
+        if result is None:
+            logger.error(f"[trace={trace_id}] Task {task_id} not found in background tasks")
+            return f"Error: Task {task_id} disappeared from background tasks"
 
-    # Synchronous execution
-    result = executor.execute(prompt)
+        # Log status changes for debugging
+        if result.status != last_status:
+            logger.info(f"[trace={trace_id}] Task {task_id} status: {result.status.value}")
+            last_status = result.status
 
-    if result.status == SubagentStatus.COMPLETED:
-        return f"[Subagent: {subagent_type} | trace={result.trace_id}]\n\n{result.result}"
-    elif result.status == SubagentStatus.FAILED:
-        return f"[Subagent: {subagent_type} | trace={result.trace_id}] Task failed: {result.error}"
-    else:
-        return f"[Subagent: {subagent_type} | trace={result.trace_id}] Unexpected status: {result.status.value}"
+        # Check if task completed or failed
+        if result.status == SubagentStatus.COMPLETED:
+            logger.info(f"[trace={trace_id}] Task {task_id} completed after {poll_count} polls")
+            return f"Task Succeeded. Result: {result.result}"
+        elif result.status == SubagentStatus.FAILED:
+            logger.error(f"[trace={trace_id}] Task {task_id} failed: {result.error}")
+            return f"Task failed. Error: {result.error}"
 
+        # Still running, wait before next poll
+        time.sleep(10)  # Poll every 10 seconds
+        poll_count += 1
 
-@tool("task_status", parse_docstring=True)
-def task_status_tool(
-    task_id: str,
-) -> str:
-    """Check the status of a background task and retrieve its result.
-
-    Use this tool to check on tasks that were started with run_in_background=True.
-
-    Args:
-        task_id: The task ID returned when starting the background task.
-    """
-    result = get_background_task_result(task_id)
-
-    if result is None:
-        return f"Error: No task found with ID '{task_id}'"
-
-    status_str = f"Task ID: {result.task_id}\nTrace ID: {result.trace_id}\nStatus: {result.status.value}"
-
-    if result.started_at:
-        status_str += f"\nStarted: {result.started_at.isoformat()}"
-
-    if result.completed_at:
-        status_str += f"\nCompleted: {result.completed_at.isoformat()}"
-
-    if result.status == SubagentStatus.COMPLETED and result.result:
-        status_str += f"\n\n✅ Task completed successfully.\n\nResult:\n{result.result}"
-    elif result.status == SubagentStatus.FAILED and result.error:
-        status_str += f"\n\n❌ Task failed.\n\nError: {result.error}"
-    elif result.status in (SubagentStatus.PENDING, SubagentStatus.RUNNING):
-        status_str += f"\n\n⏳ Task is still {result.status.value}. You MUST continue polling.\n\nAction required: Call task_status(\"{result.task_id}\") again after a brief wait."
-
-    return status_str
+        # Optional: Add timeout protection (e.g., max 5 minutes)
+        if poll_count > 30:  # 30 * 10s = 5 minutes
+            logger.warning(f"[trace={trace_id}] Task {task_id} timed out after {poll_count} polls")
+            return f"Task timed out after 5 minutes. Status: {result.status.value}"
