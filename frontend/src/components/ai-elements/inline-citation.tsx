@@ -310,10 +310,14 @@ export const CitationLink = ({
 }: CitationLinkProps) => {
   const domain = extractDomainFromUrl(href);
   
-  // Priority: citation.title > domain
-  // When citation has title, use it for consistent display
-  // This ensures correct title shows even during streaming when children might be generic
-  const displayText = citation?.title || domain;
+  // Priority: citation.title > children (if meaningful) > domain
+  // - citation.title: from parsed <citations> block, most accurate
+  // - children: from markdown link text [Text](url), used when no citation data
+  // - domain: fallback when both above are unavailable
+  // Skip children if it's a generic placeholder like "Source"
+  const childrenText = typeof children === "string" ? children : null;
+  const isGenericText = childrenText === "Source" || childrenText === "来源";
+  const displayText = citation?.title || (!isGenericText && childrenText) || domain;
 
   return (
     <InlineCitationCard>
