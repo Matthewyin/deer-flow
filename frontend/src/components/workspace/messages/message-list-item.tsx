@@ -2,8 +2,6 @@ import type { Message } from "@langchain/langgraph-sdk";
 import { ExternalLinkIcon, FileIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { memo, useMemo } from "react";
-import rehypeKatex from "rehype-katex";
-import remarkMath from "remark-math";
 
 import {
   InlineCitationCard,
@@ -31,7 +29,6 @@ import {
   parseUploadedFiles,
   type UploadedFile,
 } from "@/core/messages/utils";
-import { useRehypeSplitWordsIntoSpans } from "@/core/rehype";
 import { streamdownPlugins } from "@/core/streamdown";
 import { cn } from "@/lib/utils";
 
@@ -86,7 +83,6 @@ function MessageContent_({
   message: Message;
   isLoading?: boolean;
 }) {
-  const rehypePlugins = useRehypeSplitWordsIntoSpans(isLoading);
   const isHuman = message.type === "human";
 
   // Extract and parse citations and uploaded files from message content
@@ -211,8 +207,7 @@ function MessageContent_({
       {/* Message content - always show if present */}
       {cleanContent && (
         <AIElementMessageResponse
-          remarkPlugins={[[remarkMath, { singleDollarTextMath: true }]]}
-          rehypePlugins={[...rehypePlugins, [rehypeKatex, { output: "html" }]]}
+          {...streamdownPlugins}
           components={{
             a: ({
               href,
