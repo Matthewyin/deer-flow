@@ -78,6 +78,8 @@ export const zhCN: Translations = {
     proMode: "专业",
     proModeDescription: "思考、计划再执行，获得更精准的结果，可能需要更多时间",
     searchModels: "搜索模型...",
+    surpriseMe: "小惊喜",
+    surpriseMePrompt: "给我一个小惊喜吧",
     suggestions: [
       {
         suggestion: "写作",

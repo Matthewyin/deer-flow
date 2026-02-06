@@ -80,6 +80,8 @@ export const enUS: Translations = {
     proModeDescription:
       "Reasoning, planning and executing, get more accurate results, may take more time",
     searchModels: "Search models...",
+    surpriseMe: "Surprise",
+    surpriseMePrompt: "Surprise me",
     suggestions: [
       {
         suggestion: "Write",

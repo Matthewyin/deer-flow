@@ -392,9 +392,9 @@ function SuggestionList() {
         className="text-muted-foreground cursor-pointer rounded-full px-4 text-xs font-normal"
         variant="outline"
         size="sm"
-        onClick={() => handleSuggestionClick("Surprise me")}
+        onClick={() => handleSuggestionClick(t.inputBox.surpriseMePrompt)}
       >
-        <SparklesIcon className="size-4" /> Surprise
+        <SparklesIcon className="size-4" /> {t.inputBox.surpriseMe}
       </ConfettiButton>
       {t.inputBox.suggestions.map((suggestion) => (
         <Suggestion

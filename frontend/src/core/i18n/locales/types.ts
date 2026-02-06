@@ -63,6 +63,8 @@ export interface Translations {
     proMode: string;
     proModeDescription: string;
     searchModels: string;
+    surpriseMe: string;
+    surpriseMePrompt: string;
     suggestions: {
       suggestion: string;
       prompt: string;
