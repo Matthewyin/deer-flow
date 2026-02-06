@@ -121,7 +121,7 @@ export function MessageGroup({
                   key={step.id}
                   label={
                     <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
-                      {step.reasoning ?? ""}
+                      {parseCitations(step.reasoning ?? "").cleanContent}
                     </MessageResponse>
                   }
                 ></ChainOfThoughtStep>
@@ -171,7 +171,7 @@ export function MessageGroup({
                 key={lastReasoningStep.id}
                 label={
                   <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
-                    {lastReasoningStep.reasoning ?? ""}
+                    {parseCitations(lastReasoningStep.reasoning ?? "").cleanContent}
                   </MessageResponse>
                 }
               ></ChainOfThoughtStep>
