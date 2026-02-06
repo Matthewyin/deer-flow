@@ -40,7 +40,6 @@ function memoryToMarkdown(
   console.info(memory);
 
   parts.push(`## ${t.settings.memory.markdown.overview}`);
-  parts.push(`- **${t.common.version}**: \`${memory.version}\``);
   parts.push(
     `- **${t.common.lastUpdated}**: \`${formatTimeAgo(memory.lastUpdated)}\``,
   );

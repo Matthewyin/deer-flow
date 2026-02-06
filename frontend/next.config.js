@@ -9,6 +9,12 @@ const config = {
   devIndicators: false,
   turbopack: {
     root: import.meta.dirname,
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
   },
 };
 

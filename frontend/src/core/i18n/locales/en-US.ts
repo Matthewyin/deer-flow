@@ -209,7 +209,7 @@ export const enUS: Translations = {
       tools: "Tools",
       skills: "Skills",
       notification: "Notification",
-      acknowledge: "Acknowledge",
+      about: "About",
     },
     memory: {
       title: "Memory",

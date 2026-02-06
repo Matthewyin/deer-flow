@@ -205,7 +205,7 @@ export const zhCN: Translations = {
       tools: "工具",
       skills: "技能",
       notification: "通知",
-      acknowledge: "致谢",
+      about: "关于",
     },
     memory: {
       title: "记忆",
