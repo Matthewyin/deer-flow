@@ -92,18 +92,20 @@ export function MessageList({
               </div>
             );
           } else if (group.type === "assistant:subagent") {
-            const tasks: Subtask[] = [];
+            const tasks = new Set<Subtask>();
             for (const message of group.messages) {
               if (message.type === "ai") {
                 for (const toolCall of message.tool_calls ?? []) {
                   if (toolCall.name === "task") {
-                    updateSubtask({
+                    const task: Subtask = {
                       id: toolCall.id!,
                       subagent_type: toolCall.args.subagent_type,
                       description: toolCall.args.description,
                       prompt: toolCall.args.prompt,
                       status: "in_progress",
-                    });
+                    };
+                    updateSubtask(task);
+                    tasks.add(task);
                   }
                 }
               } else if (message.type === "tool") {
@@ -152,13 +154,13 @@ export function MessageList({
                   />,
                 );
               }
-              if (tasks.length > 1) {
+              if (tasks.size > 1) {
                 results.push(
                   <div
                     key="subtask-count"
                     className="text-muted-foreground font-norma pt-2 text-sm"
                   >
-                    {t.subtasks.executing(tasks.length)}
+                    {t.subtasks.executing(tasks.size)}
                   </div>,
                 );
               }
