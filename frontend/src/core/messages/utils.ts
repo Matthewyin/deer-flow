@@ -1,4 +1,4 @@
-import type { Message } from "@langchain/langgraph-sdk";
+import type { AIMessage, Message } from "@langchain/langgraph-sdk";
 
 interface GenericMessageGroup<T = string> {
   type: T;
@@ -16,12 +16,15 @@ interface AssistantPresentFilesGroup extends GenericMessageGroup<"assistant:pres
 
 interface AssistantClarificationGroup extends GenericMessageGroup<"assistant:clarification"> {}
 
+interface AssistantSubagentGroup extends GenericMessageGroup<"assistant:subagent"> {}
+
 type MessageGroup =
   | HumanMessageGroup
   | AssistantProcessingGroup
   | AssistantMessageGroup
   | AssistantPresentFilesGroup
-  | AssistantClarificationGroup;
+  | AssistantClarificationGroup
+  | AssistantSubagentGroup;
 
 export function groupMessages<T>(
   messages: Message[],
@@ -76,6 +79,12 @@ export function groupMessages<T>(
           groups.push({
             id: message.id,
             type: "assistant:present-files",
+            messages: [message],
+          });
+        } else if (hasSubagent(message)) {
+          groups.push({
+            id: message.id,
+            type: "assistant:subagent",
             messages: [message],
           });
         } else {
@@ -230,6 +239,15 @@ export function extractPresentFilesFromMessage(message: Message) {
     }
   }
   return files;
+}
+
+export function hasSubagent(message: AIMessage) {
+  for (const toolCall of message.tool_calls ?? []) {
+    if (toolCall.name === "task") {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function findToolCallResult(toolCallId: string, messages: Message[]) {

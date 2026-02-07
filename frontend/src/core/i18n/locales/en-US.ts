@@ -209,6 +209,16 @@ export const enUS: Translations = {
     skillInstallTooltip: "Install skill and make it available to DeerFlow",
   },
 
+  // Subtasks
+  subtasks: {
+    subtask: "Subtask",
+    executing: (count: number) =>
+      `Executing ${count} subtask${count === 1 ? "" : "s"} in parallel`,
+    running: "Running subtask",
+    completed: "Subtask completed",
+    failed: "Subtask failed",
+  },
+
   // Settings
   settings: {
     title: "Settings",

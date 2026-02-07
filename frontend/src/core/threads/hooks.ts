@@ -31,6 +31,9 @@ export function useThreadStream({
     threadId: isNewThread ? undefined : threadId,
     reconnectOnMount: true,
     fetchStateHistory: true,
+    onCustomEvent(event) {
+      console.info(event);
+    },
     onFinish(state) {
       onFinish?.(state.values);
       // void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });

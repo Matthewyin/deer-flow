@@ -155,6 +155,15 @@ export interface Translations {
     skillInstallTooltip: string;
   };
 
+  // Subtasks
+  subtasks: {
+    subtask: string;
+    executing: (count: number) => string;
+    running: string;
+    completed: string;
+    failed: string;
+  };
+
   // Settings
   settings: {
     title: string;

@@ -206,9 +206,7 @@ export function InputBox({
                 {context.mode === "pro" && (
                   <GraduationCapIcon className="size-3" />
                 )}
-                {context.mode === "ultra" && (
-                  <RocketIcon className="size-3" />
-                )}
+                {context.mode === "ultra" && <RocketIcon className="size-3" />}
               </div>
               <div className="text-xs font-normal">
                 {(context.mode === "flash" && t.inputBox.flashMode) ||
@@ -324,7 +322,8 @@ export function InputBox({
                         <RocketIcon
                           className={cn(
                             "mr-2 size-4",
-                            context.mode === "ultra" && "text-accent-foreground",
+                            context.mode === "ultra" &&
+                              "text-accent-foreground",
                           )}
                         />
                         {t.inputBox.ultraMode}

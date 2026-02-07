@@ -83,7 +83,7 @@ export function MessageGroup({
   const rehypePlugins = useRehypeSplitWordsIntoSpans(isLoading);
   return (
     <ChainOfThought
-      className={cn("w-full gap-2 rounded-lg border py-0", className)}
+      className={cn("w-full gap-2 rounded-lg border p-0.5", className)}
       open={true}
     >
       {aboveLastToolCallSteps.length > 0 && (
@@ -120,7 +120,10 @@ export function MessageGroup({
                 <ChainOfThoughtStep
                   key={step.id}
                   label={
-                    <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
+                    <MessageResponse
+                      remarkPlugins={streamdownPlugins.remarkPlugins}
+                      rehypePlugins={rehypePlugins}
+                    >
                       {parseCitations(step.reasoning ?? "").cleanContent}
                     </MessageResponse>
                   }
@@ -170,8 +173,14 @@ export function MessageGroup({
               <ChainOfThoughtStep
                 key={lastReasoningStep.id}
                 label={
-                  <MessageResponse remarkPlugins={streamdownPlugins.remarkPlugins} rehypePlugins={rehypePlugins}>
-                    {parseCitations(lastReasoningStep.reasoning ?? "").cleanContent}
+                  <MessageResponse
+                    remarkPlugins={streamdownPlugins.remarkPlugins}
+                    rehypePlugins={rehypePlugins}
+                  >
+                    {
+                      parseCitations(lastReasoningStep.reasoning ?? "")
+                        .cleanContent
+                    }
                   </MessageResponse>
                 }
               ></ChainOfThoughtStep>
@@ -208,7 +217,10 @@ function ToolCall({
 
   // Move useMemo to top level to comply with React Hooks rules
   const fileContent = typeof args.content === "string" ? args.content : "";
-  const { citations } = useMemo(() => parseCitations(fileContent), [fileContent]);
+  const { citations } = useMemo(
+    () => parseCitations(fileContent),
+    [fileContent],
+  );
 
   if (name === "web_search") {
     let label: React.ReactNode = t.toolCalls.searchForRelatedInfo;
@@ -369,9 +381,12 @@ function ToolCall({
     }
 
     // Check if this is a markdown file with citations
-    const isMarkdown = path?.toLowerCase().endsWith(".md") || path?.toLowerCase().endsWith(".markdown");
+    const isMarkdown =
+      path?.toLowerCase().endsWith(".md") ||
+      path?.toLowerCase().endsWith(".markdown");
     const hasCitationsBlock = fileContent.includes("<citations>");
-    const showCitationsLoading = isMarkdown && threadIsLoading && hasCitationsBlock && isLast;
+    const showCitationsLoading =
+      isMarkdown && threadIsLoading && hasCitationsBlock && isLast;
 
     return (
       <>
@@ -398,7 +413,7 @@ function ToolCall({
           )}
         </ChainOfThoughtStep>
         {showCitationsLoading && (
-          <div className="ml-8 mt-2">
+          <div className="mt-2 ml-8">
             <CitationsLoadingIndicator citations={citations} />
           </div>
         )}
@@ -491,6 +506,9 @@ function convertToSteps(messages: Message[]): CoTStep[] {
         steps.push(step);
       }
       for (const tool_call of message.tool_calls ?? []) {
+        if (tool_call.name === "task") {
+          continue;
+        }
         const step: CoTToolCallStep = {
           id: tool_call.id,
           messageId: message.id,

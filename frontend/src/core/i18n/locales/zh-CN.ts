@@ -78,7 +78,8 @@ export const zhCN: Translations = {
     proMode: "专业",
     proModeDescription: "思考、计划再执行，获得更精准的结果，可能需要更多时间",
     ultraMode: "超级",
-    ultraModeDescription: "专业模式加子代理，适用于复杂的多步骤任务，功能最强大",
+    ultraModeDescription:
+      "专业模式加子代理，适用于复杂的多步骤任务，功能最强大",
     searchModels: "搜索模型...",
     surpriseMe: "小惊喜",
     surpriseMePrompt: "给我一个小惊喜吧",
@@ -201,6 +202,14 @@ export const zhCN: Translations = {
     clickToViewContent: "点击查看文件内容",
     writeTodos: "更新 To-do 列表",
     skillInstallTooltip: "安装技能并使其可在 DeerFlow 中使用",
+  },
+
+  subtasks: {
+    subtask: "子任务",
+    executing: (count: number) => `并行执行 ${count} 个子任务`,
+    running: "子任务运行中",
+    completed: "子任务已完成",
+    failed: "子任务失败",
   },
 
   // Settings

@@ -177,7 +177,8 @@ export default function ChatPage() {
     threadContext: {
       ...settings.context,
       thinking_enabled: settings.context.mode !== "flash",
-      is_plan_mode: settings.context.mode === "pro" || settings.context.mode === "ultra",
+      is_plan_mode:
+        settings.context.mode === "pro" || settings.context.mode === "ultra",
       subagent_enabled: settings.context.mode === "ultra",
     },
     afterSubmit() {
