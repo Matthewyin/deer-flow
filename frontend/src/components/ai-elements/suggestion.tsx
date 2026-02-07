@@ -8,7 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { Children, type ComponentProps } from "react";
 
 const STAGGER_DELAY_MS = 60;
-const STAGGER_DELAY_MS_OFFSET = 200;
+const STAGGER_DELAY_MS_OFFSET = 250;
 
 export type SuggestionsProps = ComponentProps<typeof ScrollArea>;
 

@@ -384,7 +384,7 @@ export function InputBox({
         </PromptInputTools>
       </PromptInputFooter>
       {isNewThread && searchParams.get("mode") !== "skill" && (
-        <div className="absolute right-0 -bottom-12 left-0 z-0 flex items-center justify-center">
+        <div className="absolute right-0 -bottom-24 left-0 z-0 flex items-center justify-center">
           <SuggestionList />
         </div>
       )}
@@ -419,7 +419,7 @@ function SuggestionList() {
     [textInput],
   );
   return (
-    <Suggestions className="w-fit">
+    <Suggestions className="h-32 w-fit">
       <ConfettiButton
         className="text-muted-foreground cursor-pointer rounded-full px-4 text-xs font-normal"
         variant="outline"
