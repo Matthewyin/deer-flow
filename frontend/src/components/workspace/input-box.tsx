@@ -197,7 +197,7 @@ export function InputBox({
           </PromptInputActionMenu> */}
           <AddAttachmentsButton className="px-2!" />
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger className="px-2!">
+            <PromptInputActionMenuTrigger className="gap-1! px-2!">
               <div>
                 {context.mode === "flash" && <ZapIcon className="size-3" />}
                 {context.mode === "thinking" && (
@@ -206,9 +206,16 @@ export function InputBox({
                 {context.mode === "pro" && (
                   <GraduationCapIcon className="size-3" />
                 )}
-                {context.mode === "ultra" && <RocketIcon className="size-3" />}
+                {context.mode === "ultra" && (
+                  <RocketIcon className="size-3 text-[#dabb5e]" />
+                )}
               </div>
-              <div className="text-xs font-normal">
+              <div
+                className={cn(
+                  "text-xs font-normal",
+                  context.mode === "ultra" ? "golden-text" : "",
+                )}
+              >
                 {(context.mode === "flash" && t.inputBox.flashMode) ||
                   (context.mode === "thinking" && t.inputBox.reasoningMode) ||
                   (context.mode === "pro" && t.inputBox.proMode) ||
@@ -322,11 +329,16 @@ export function InputBox({
                         <RocketIcon
                           className={cn(
                             "mr-2 size-4",
-                            context.mode === "ultra" &&
-                              "text-accent-foreground",
+                            context.mode === "ultra" && "text-[#dabb5e]",
                           )}
                         />
-                        {t.inputBox.ultraMode}
+                        <div
+                          className={cn(
+                            context.mode === "ultra" && "golden-text",
+                          )}
+                        >
+                          {t.inputBox.ultraMode}
+                        </div>
                       </div>
                       <div className="pl-7 text-xs">
                         {t.inputBox.ultraModeDescription}

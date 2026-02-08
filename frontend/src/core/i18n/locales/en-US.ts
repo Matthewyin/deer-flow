@@ -81,7 +81,7 @@ export const enUS: Translations = {
       "Reasoning, planning and executing, get more accurate results, may take more time",
     ultraMode: "Ultra",
     ultraModeDescription:
-      "Pro mode with subagents enabled, maximum capability for complex multi-step tasks",
+      "Pro mode with subagents enabled, maximum capability for complex tasks",
     searchModels: "Search models...",
     surpriseMe: "Surprise",
     surpriseMePrompt: "Surprise me",

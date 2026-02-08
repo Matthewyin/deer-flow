@@ -374,6 +374,14 @@
   .ambilight:after {
     filter: blur(60px);
   }
+
+  .golden-text {
+    background: linear-gradient(135deg, #d19e1d 0%, #e9c665 50%, #e3a812 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-fill-color: transparent;
+  }
 }
 
 :root {
