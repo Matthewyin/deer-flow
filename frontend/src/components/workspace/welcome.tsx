@@ -8,7 +8,13 @@ import { cn } from "@/lib/utils";
 
 let waved = false;
 
-export function Welcome({ className }: { className?: string }) {
+export function Welcome({
+  className,
+  mode,
+}: {
+  className?: string;
+  mode?: "ultra" | "pro" | "thinking" | "flash";
+}) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -29,7 +35,9 @@ export function Welcome({ className }: { className?: string }) {
             <div className={cn("inline-block", !waved ? "animate-wave" : "")}>
               👋
             </div>
-            <div>{t.welcome.greeting}</div>
+            <div className={cn(mode === "ultra" && "golden-text")}>
+              {t.welcome.greeting}
+            </div>
           </div>
         )}
       </div>

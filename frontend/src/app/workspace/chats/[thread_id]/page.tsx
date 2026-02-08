@@ -274,7 +274,9 @@ export default function ChatPage() {
                     autoFocus={isNewThread}
                     status={thread.isLoading ? "streaming" : "ready"}
                     context={settings.context}
-                    extraHeader={isNewThread && <Welcome />}
+                    extraHeader={
+                      isNewThread && <Welcome mode={settings.context.mode} />
+                    }
                     disabled={env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY === "true"}
                     onContextChange={(context) =>
                       setSettings("context", context)
