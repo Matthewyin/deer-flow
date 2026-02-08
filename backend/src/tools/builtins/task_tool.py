@@ -131,7 +131,7 @@ def task_tool(
             logger.info(f"[trace={trace_id}] Task {task_id} status: {result.status.value}")
             last_status = result.status
 
-        # Check if task completed or failed
+        # Check if task completed, failed, or timed out
         if result.status == SubagentStatus.COMPLETED:
             writer({"type": "task_completed", "task_id": task_id, "result": result.result})
             logger.info(f"[trace={trace_id}] Task {task_id} completed after {poll_count} polls")
@@ -140,14 +140,20 @@ def task_tool(
             writer({"type": "task_failed", "task_id": task_id, "error": result.error})
             logger.error(f"[trace={trace_id}] Task {task_id} failed: {result.error}")
             return f"Task failed. Error: {result.error}"
+        elif result.status == SubagentStatus.TIMED_OUT:
+            writer({"type": "task_timed_out", "task_id": task_id, "error": result.error})
+            logger.warning(f"[trace={trace_id}] Task {task_id} timed out: {result.error}")
+            return f"Task timed out. Error: {result.error}"
 
         # Still running, wait before next poll
         writer({"type": "task_running", "task_id": task_id, "poll_count": poll_count})
         time.sleep(5)  # Poll every 5 seconds
         poll_count += 1
 
-        # Optional: Add timeout protection (e.g., max 5 minutes)
-        if poll_count > 60:  # 60 * 5s = 5 minutes
-            logger.warning(f"[trace={trace_id}] Task {task_id} timed out after {poll_count} polls")
+        # Polling timeout as a safety net (in case thread pool timeout doesn't work)
+        # Set to 16 minutes (longer than the default 15-minute thread pool timeout)
+        # This catches edge cases where the background task gets stuck
+        if poll_count > 192:  # 192 * 5s = 16 minutes
+            logger.error(f"[trace={trace_id}] Task {task_id} polling timed out after {poll_count} polls (should have been caught by thread pool timeout)")
             writer({"type": "task_timed_out", "task_id": task_id})
-            return f"Task timed out after 5 minutes. Status: {result.status.value}"
+            return f"Task polling timed out after 16 minutes. This may indicate the background task is stuck. Status: {result.status.value}"

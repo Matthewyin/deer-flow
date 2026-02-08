@@ -29,6 +29,7 @@ class SubagentStatus(Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    TIMED_OUT = "timed_out"
 
 
 @dataclass
@@ -332,7 +333,7 @@ class SubagentExecutor:
                         f"[trace={self.trace_id}] Subagent {self.config.name} execution timed out after {self.config.timeout_seconds}s"
                     )
                     with _background_tasks_lock:
-                        _background_tasks[task_id].status = SubagentStatus.FAILED
+                        _background_tasks[task_id].status = SubagentStatus.TIMED_OUT
                         _background_tasks[task_id].error = f"Execution timed out after {self.config.timeout_seconds} seconds"
                         _background_tasks[task_id].completed_at = datetime.now()
                     # Cancel the future (best effort - may not stop the actual execution)
