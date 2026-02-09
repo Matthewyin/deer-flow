@@ -1,6 +1,7 @@
 "use client";
 
 import type { Message } from "@langchain/langgraph-sdk";
+import type { UseStream } from "@langchain/langgraph-sdk/react";
 import { FilesIcon, XIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -113,7 +114,7 @@ export default function ChatPage() {
         });
       }
     },
-  });
+  }) as unknown as UseStream<AgentThreadState>;
   useEffect(() => {
     if (thread.isLoading) setFinalState(null);
   }, [thread.isLoading]);
