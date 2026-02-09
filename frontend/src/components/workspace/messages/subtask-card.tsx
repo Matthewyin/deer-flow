@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 
 import { FlipDisplay } from "../flip-display";
 
-import { SafeCitationContent } from "./safe-citation-content";
+import { MarkdownContent } from "./markdown-content";
 
 export function SubtaskCard({
   className,
@@ -153,7 +153,7 @@ export function SubtaskCard({
               <ChainOfThoughtStep
                 label={
                   task.result ? (
-                    <SafeCitationContent
+                    <MarkdownContent
                       content={task.result}
                       isLoading={false}
                       rehypePlugins={rehypePlugins}

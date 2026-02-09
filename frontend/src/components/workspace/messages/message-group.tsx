@@ -39,9 +39,7 @@ import { useArtifacts } from "../artifacts";
 import { FlipDisplay } from "../flip-display";
 import { Tooltip } from "../tooltip";
 
-import { useThread } from "./context";
-
-import { SafeCitationContent } from "./safe-citation-content";
+import { MarkdownContent } from "./markdown-content";
 
 export function MessageGroup({
   className,
@@ -120,7 +118,7 @@ export function MessageGroup({
                 <ChainOfThoughtStep
                   key={step.id}
                   label={
-                    <SafeCitationContent
+                    <MarkdownContent
                       content={step.reasoning ?? ""}
                       isLoading={isLoading}
                       rehypePlugins={rehypePlugins}
@@ -128,12 +126,7 @@ export function MessageGroup({
                   }
                 ></ChainOfThoughtStep>
               ) : (
-                <ToolCall
-                  key={step.id}
-                  {...step}
-                  isLoading={isLoading}
-                  rehypePlugins={rehypePlugins}
-                />
+                <ToolCall key={step.id} {...step} isLoading={isLoading} />
               ),
             )}
           {lastToolCallStep && (
@@ -143,7 +136,6 @@ export function MessageGroup({
                 {...lastToolCallStep}
                 isLast={true}
                 isLoading={isLoading}
-                rehypePlugins={rehypePlugins}
               />
             </FlipDisplay>
           )}
@@ -178,7 +170,7 @@ export function MessageGroup({
               <ChainOfThoughtStep
                 key={lastReasoningStep.id}
                 label={
-                  <SafeCitationContent
+                  <MarkdownContent
                     content={lastReasoningStep.reasoning ?? ""}
                     isLoading={isLoading}
                     rehypePlugins={rehypePlugins}
@@ -201,7 +193,6 @@ function ToolCall({
   result,
   isLast = false,
   isLoading = false,
-  rehypePlugins,
 }: {
   id?: string;
   messageId?: string;
@@ -210,15 +201,10 @@ function ToolCall({
   result?: string | Record<string, unknown>;
   isLast?: boolean;
   isLoading?: boolean;
-  rehypePlugins: ReturnType<typeof useRehypeSplitWordsIntoSpans>;
 }) {
   const { t } = useI18n();
   const { setOpen, autoOpen, autoSelect, selectedArtifact, select } =
     useArtifacts();
-  const { thread } = useThread();
-  const threadIsLoading = thread.isLoading;
-
-  const fileContent = typeof args.content === "string" ? args.content : "";
 
   if (name === "web_search") {
     let label: React.ReactNode = t.toolCalls.searchForRelatedInfo;
@@ -364,42 +350,27 @@ function ToolCall({
       }, 100);
     }
 
-    const isMarkdown =
-      path?.toLowerCase().endsWith(".md") ||
-      path?.toLowerCase().endsWith(".markdown");
-
     return (
-      <>
-        <ChainOfThoughtStep
-          key={id}
-          className="cursor-pointer"
-          label={description}
-          icon={NotebookPenIcon}
-          onClick={() => {
-            select(
-              new URL(
-                `write-file:${path}?message_id=${messageId}&tool_call_id=${id}`,
-              ).toString(),
-            );
-            setOpen(true);
-          }}
-        >
-          {path && (
-            <ChainOfThoughtSearchResult className="cursor-pointer">
-              {path}
-            </ChainOfThoughtSearchResult>
-          )}
-        </ChainOfThoughtStep>
-        {isMarkdown && (
-          <SafeCitationContent
-            content={fileContent}
-            isLoading={threadIsLoading && isLast}
-            rehypePlugins={rehypePlugins}
-            loadingOnly
-            className="mt-2 ml-8"
-          />
+      <ChainOfThoughtStep
+        key={id}
+        className="cursor-pointer"
+        label={description}
+        icon={NotebookPenIcon}
+        onClick={() => {
+          select(
+            new URL(
+              `write-file:${path}?message_id=${messageId}&tool_call_id=${id}`,
+            ).toString(),
+          );
+          setOpen(true);
+        }}
+      >
+        {path && (
+          <ChainOfThoughtSearchResult className="cursor-pointer">
+            {path}
+          </ChainOfThoughtSearchResult>
         )}
-      </>
+      </ChainOfThoughtStep>
     );
   } else if (name === "bash") {
     const description: string | undefined = (args as { description: string })

@@ -115,12 +115,6 @@ export interface Translations {
     startConversation: string;
   };
 
-  // Citations
-  citations: {
-    loadingCitations: string;
-    loadingCitationsWithCount: (count: number) => string;
-  };
-
   // Chats
   chats: {
     searchChats: string;

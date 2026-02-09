@@ -1,12 +1,3 @@
-<citations>
-{"id": "cite-1", "title": "DeerFlow GitHub Repository", "url": "https://github.com/bytedance/deer-flow", "snippet": "Community-driven Deep Research framework combining language models with tools like web search, crawling, and Python execution"}
-{"id": "cite-2", "title": "Create Your Own Deep Research Agent with DeerFlow", "url": "https://thesequence.substack.com/p/the-sequence-engineering-661-create", "snippet": "Open-source multi-agent research automation framework developed by ByteDance"}
-{"id": "cite-3", "title": "DeerFlow: A Game-Changer for Automated Research and Content Creation", "url": "https://medium.com/@mingyang.heaven/deerflow-a-game-changer-for-automated-research-and-content-creation-83612f683e7a", "snippet": "Open-source multi-agent framework revolutionizing research and content creation"}
-{"id": "cite-4", "title": "ByteDance DeerFlow - (Deep Research Agents with a LOCAL LLM!)", "url": "https://www.youtube.com/watch?v=Ui0ovCVDYGs", "snippet": "Video demonstration of DeerFlow capabilities and local LLM integration"}
-{"id": "cite-5", "title": "DeerFlow Official Website", "url": "https://deerflow.tech/", "snippet": "Official platform showcasing DeerFlow features, case studies, and architecture"}
-{"id": "cite-6", "title": "Navigating the Landscape of Deep Research Frameworks", "url": "https://www.oreateai.com/blog/navigating-the-landscape-of-deep-research-frameworks-a-comprehensive-comparison/0dc13e48eb8c756650112842c8d1a184", "snippet": "Comparative analysis of deep research frameworks including DeerFlow"}
-{"id": "cite-7", "title": "DeerFlow: Multi-Agent AI For Research Automation 2025", "url": "https://firexcore.com/blog/what-is-deerflow/", "snippet": "Overview of DeerFlow features and capabilities for research automation"}
-</citations>
 # DeerFlow Deep Research Report
 
 - **Research Date:** 2026-02-01

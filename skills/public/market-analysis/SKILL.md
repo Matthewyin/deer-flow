@@ -15,7 +15,7 @@ This skill generates professional, consulting-grade market analysis reports in M
 - Follow the **"Visual Anchor → Data Contrast → Integrated Analysis"** flow per sub-chapter
 - Produce insights following the **"Data → User Psychology → Strategy Implication"** chain
 - Embed pre-generated charts and construct comparison tables
-- Generate inline citations formatted per **GB/T 7714-2015** standards
+- Include references formatted per **GB/T 7714-2015** where applicable
 - Output reports entirely in Chinese with professional consulting tone
 
 ## When to Use This Skill
@@ -36,7 +36,7 @@ The skill expects the following inputs from the upstream agentic workflow:
 | **Analysis Framework Outline** | Defines the logic flow and general topics for the report | Yes |
 | **Data Summary** | The source of truth containing raw numbers and metrics | Yes |
 | **Chart Files** | Local file paths for pre-generated chart images | Yes |
-| **External Search Findings** | URLs and summaries for inline citations | Optional |
+| **External Search Findings** | URLs and summaries for inline references | Optional |
 
 ## Workflow
 
@@ -87,7 +87,7 @@ The report **MUST NOT** stop after the Conclusion — it **MUST** include Refere
 - **Tone**: McKinsey/BCG — Authoritative, Objective, Professional
 - **Language**: All headings and content strictly in **Chinese**
 - **Number Formatting**: Use English commas for thousands separators (`1,000` not `1，000`)
-- **Data Citation**: **Bold** important viewpoints and key numbers
+- **Data emphasis**: **Bold** important viewpoints and key numbers
 
 ### Titling Constraints
 - **Numbering**: Use standard numbering (`1.`, `1.1`) or Chinese numbering (`一、`) directly followed by the title
@@ -109,11 +109,9 @@ Every insight must connect **Data → User Psychology → Strategy Implication**
    treating male audiences only as a secondary gift-giving segment."
 ```
 
-### Citations & References
-- **Inline**: Use `[\[Index\]](URL)` format (e.g., `[\[1\]](https://example.com)`)
-- **Placement**: Append citations at the end of sentences using information from External Search Findings
-- **Index Assignment**: Sequential starting from **1** based on order of appearance
-- **References Section**: Formatted strictly per **GB/T 7714-2015**
+### References
+- **Inline**: Use markdown links for sources (e.g. `[Source Title](URL)`) when using External Search Findings
+- **References section**: Formatted strictly per **GB/T 7714-2015**
 
 ### Markdown Rules
 - **Immediate Start**: Begin directly with `# Report Title` — no introductory text
@@ -183,7 +181,7 @@ Before considering the report complete, verify:
 - [ ] All headings are in Chinese with proper numbering (no "Chapter/Part/Section")
 - [ ] Charts are embedded with `![Description](path)` syntax
 - [ ] Numbers use English commas for thousands separators
-- [ ] Inline citations use `[\[N\]](URL)` format
+- [ ] Inline references use markdown links where applicable
 - [ ] References section follows GB/T 7714-2015
 - [ ] No horizontal rules (`---`) in the document
 - [ ] Conclusion uses flowing prose — no bullet points

@@ -12,7 +12,6 @@ import {
 } from "@/components/ai-elements/message";
 import { Badge } from "@/components/ui/badge";
 import { resolveArtifactURL } from "@/core/artifacts/utils";
-import { removeAllCitations } from "@/core/citations";
 import {
   extractContentFromMessage,
   extractReasoningContentFromMessage,
@@ -24,7 +23,7 @@ import { humanMessagePlugins } from "@/core/streamdown";
 import { cn } from "@/lib/utils";
 
 import { CopyButton } from "../copy-button";
-import { SafeCitationContent } from "./safe-citation-content";
+import { MarkdownContent } from "./markdown-content";
 
 export function MessageListItem({
   className,
@@ -54,11 +53,11 @@ export function MessageListItem({
       >
         <div className="flex gap-1">
           <CopyButton
-            clipboardData={removeAllCitations(
+            clipboardData={
               extractContentFromMessage(message) ??
               extractReasoningContentFromMessage(message) ??
               ""
-            )}
+            }
           />
         </div>
       </MessageToolbar>
@@ -154,7 +153,7 @@ function MessageContent_({
   return (
     <AIElementMessageContent className={className}>
       {filesList}
-      <SafeCitationContent
+      <MarkdownContent
         content={contentToParse}
         isLoading={isLoading}
         rehypePlugins={[...rehypePlugins, [rehypeKatex, { output: "html" }]]}

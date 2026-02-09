@@ -164,12 +164,6 @@ export const zhCN: Translations = {
     startConversation: "开始新的对话以查看消息",
   },
 
-  // Citations
-  citations: {
-    loadingCitations: "正在整理引用...",
-    loadingCitationsWithCount: (count: number) => `正在整理 ${count} 个引用...`,
-  },
-
   // Chats
   chats: {
     searchChats: "搜索对话",

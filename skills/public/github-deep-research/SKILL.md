@@ -147,5 +147,5 @@ Save report as: `research_{topic}_{YYYYMMDD}.md`
 3. **Triangulate claims** - 2+ independent sources
 4. **Note conflicting info** - Don't hide contradictions
 5. **Distinguish fact vs opinion** - Label speculation clearly
-6. **Cite inline** - Reference sources near claims
+6. **Reference sources** - Add source references near claims where applicable
 7. **Update as you go** - Don't wait until end to synthesize

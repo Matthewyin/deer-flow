@@ -49,7 +49,6 @@ src/
 ├── core/                   # Core business logic
 │   ├── api/                # API client & data fetching
 │   ├── artifacts/          # Artifact management
-│   ├── citations/          # Citation handling
 │   ├── config/              # App configuration
 │   ├── i18n/               # Internationalization
 │   ├── mcp/                # MCP integration

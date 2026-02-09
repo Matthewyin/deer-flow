@@ -8,7 +8,6 @@ import {
   SquareArrowOutUpRightIcon,
   XIcon,
 } from "lucide-react";
-import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
@@ -21,7 +20,6 @@ import {
   ArtifactHeader,
   ArtifactTitle,
 } from "@/components/ai-elements/artifact";
-import { createCitationMarkdownComponents } from "@/components/ai-elements/inline-citation";
 import { Select, SelectItem } from "@/components/ui/select";
 import {
   SelectContent,
@@ -33,12 +31,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CodeEditor } from "@/components/workspace/code-editor";
 import { useArtifactContent } from "@/core/artifacts/hooks";
 import { urlOfArtifact } from "@/core/artifacts/utils";
-import type { Citation } from "@/core/citations";
-import {
-  contentWithoutCitationsFromParsed,
-  removeAllCitations,
-  useParsedCitations,
-} from "@/core/citations";
 import { useI18n } from "@/core/i18n/hooks";
 import { installSkill } from "@/core/skills/api";
 import { streamdownPlugins } from "@/core/streamdown";
@@ -47,9 +39,6 @@ import { env } from "@/env";
 import { cn } from "@/lib/utils";
 
 import { Tooltip } from "../tooltip";
-
-import { SafeCitationContent } from "../messages/safe-citation-content";
-import { useThread } from "../messages/context";
 
 import { useArtifacts } from "./context";
 
@@ -92,22 +81,13 @@ export function ArtifactFileDetail({
   const previewable = useMemo(() => {
     return (language === "html" && !isWriteFile) || language === "markdown";
   }, [isWriteFile, language]);
-  const { thread } = useThread();
   const { content } = useArtifactContent({
     threadId,
     filepath: filepathFromProps,
     enabled: isCodeFile && !isWriteFile,
   });
 
-  const parsed = useParsedCitations(
-    language === "markdown" ? (content ?? "") : "",
-  );
-  const cleanContent =
-    language === "markdown" && content ? parsed.cleanContent : (content ?? "");
-  const contentWithoutCitations =
-    language === "markdown" && content
-      ? contentWithoutCitationsFromParsed(parsed)
-      : (content ?? "");
+  const displayContent = content ?? "";
 
   const [viewMode, setViewMode] = useState<"code" | "preview">("code");
   const [isInstalling, setIsInstalling] = useState(false);
@@ -219,7 +199,7 @@ export function ArtifactFileDetail({
                 disabled={!content}
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(contentWithoutCitations ?? "");
+                    await navigator.clipboard.writeText(displayContent ?? "");
                     toast.success(t.clipboard.copiedToClipboard);
                   } catch (error) {
                     toast.error("Failed to copy to clipboard");
@@ -255,27 +235,17 @@ export function ArtifactFileDetail({
           viewMode === "preview" &&
           language === "markdown" &&
           content && (
-            <SafeCitationContent
-              content={content}
-              isLoading={thread.isLoading}
-              rehypePlugins={streamdownPlugins.rehypePlugins}
-              className="flex size-full items-center justify-center p-4 my-0"
-              renderBody={(p) => (
-                <ArtifactFilePreview
-                  filepath={filepath}
-                  threadId={threadId}
-                  content={content}
-                  language={language ?? "text"}
-                  cleanContent={p.cleanContent}
-                  citationMap={p.citationMap}
-                />
-              )}
+            <ArtifactFilePreview
+              filepath={filepath}
+              threadId={threadId}
+              content={displayContent}
+              language={language ?? "text"}
             />
           )}
         {isCodeFile && viewMode === "code" && (
           <CodeEditor
             className="size-full resize-none rounded-none border-none"
-            value={cleanContent ?? ""}
+            value={displayContent ?? ""}
             readonly
           />
         )}
@@ -295,29 +265,17 @@ export function ArtifactFilePreview({
   threadId,
   content,
   language,
-  cleanContent,
-  citationMap,
 }: {
   filepath: string;
   threadId: string;
   content: string;
   language: string;
-  cleanContent: string;
-  citationMap: Map<string, Citation>;
 }) {
   if (language === "markdown") {
-    const components = createCitationMarkdownComponents({
-      citationMap,
-      syntheticExternal: true,
-    });
     return (
       <div className="size-full px-4">
-        <Streamdown
-          className="size-full"
-          {...streamdownPlugins}
-          components={components}
-        >
-          {cleanContent ?? ""}
+        <Streamdown className="size-full" {...streamdownPlugins}>
+          {content ?? ""}
         </Streamdown>
       </div>
     );
