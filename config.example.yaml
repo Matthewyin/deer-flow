@@ -18,10 +18,10 @@ models:
     display_name: GPT-4
     use: langchain_openai:ChatOpenAI
     model: gpt-4
-    api_key: $OPENAI_API_KEY  # Use environment variable
+    api_key: $OPENAI_API_KEY # Use environment variable
     max_tokens: 4096
     temperature: 0.7
-    supports_vision: true  # Enable vision support for view_image tool
+    supports_vision: true # Enable vision support for view_image tool
 
   # Example: Anthropic Claude model
   # - name: claude-3-5-sonnet
@@ -210,7 +210,7 @@ title:
   enabled: true
   max_words: 6
   max_chars: 60
-  model_name: null  # Use default model (first model in models list)
+  model_name: null # Use default model (first model in models list)
 
 # ============================================================================
 # Summarization Configuration
@@ -289,10 +289,10 @@ summarization:
 # Stores user context and conversation history for personalized responses
 memory:
   enabled: true
-  storage_path: .deer-flow/memory.json  # Path relative to backend directory
-  debounce_seconds: 30  # Wait time before processing queued updates
-  model_name: null  # Use default model
-  max_facts: 100  # Maximum number of facts to store
-  fact_confidence_threshold: 0.7  # Minimum confidence for storing facts
-  injection_enabled: true  # Whether to inject memory into system prompt
-  max_injection_tokens: 2000  # Maximum tokens for memory injection
+  storage_path: .deer-flow/memory.json # Path relative to backend directory
+  debounce_seconds: 30 # Wait time before processing queued updates
+  model_name: null # Use default model
+  max_facts: 100 # Maximum number of facts to store
+  fact_confidence_threshold: 0.7 # Minimum confidence for storing facts
+  injection_enabled: true # Whether to inject memory into system prompt
+  max_injection_tokens: 2000 # Maximum tokens for memory injection

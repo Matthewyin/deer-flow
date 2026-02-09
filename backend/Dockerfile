@@ -14,6 +14,12 @@ ENV PATH="/root/.local/bin:$PATH"
 # Set working directory
 WORKDIR /app
 
+# Copy frontend source code
+COPY backend ./backend
+
+# Install dependencies
+RUN sh -c "cd backend && uv sync"
+
 # Expose ports (gateway: 8001, langgraph: 2024)
 EXPOSE 8001 2024
 
