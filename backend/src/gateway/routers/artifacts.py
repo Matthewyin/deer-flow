@@ -1,5 +1,5 @@
+import json
 import mimetypes
-import os
 import re
 import zipfile
 from pathlib import Path
@@ -8,47 +8,9 @@ from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
-# Base directory for thread data (relative to backend/)
-THREAD_DATA_BASE_DIR = ".deer-flow/threads"
-
-# Virtual path prefix used in sandbox environments (without leading slash for URL path matching)
-VIRTUAL_PATH_PREFIX = "mnt/user-data"
+from src.gateway.path_utils import resolve_thread_virtual_path
 
 router = APIRouter(prefix="/api", tags=["artifacts"])
-
-
-def _resolve_artifact_path(thread_id: str, artifact_path: str) -> Path:
-    """Resolve a virtual artifact path to the actual filesystem path.
-
-    Args:
-        thread_id: The thread ID.
-        artifact_path: The virtual path (e.g., mnt/user-data/outputs/file.txt).
-
-    Returns:
-        The resolved filesystem path.
-
-    Raises:
-        HTTPException: If the path is invalid or outside allowed directories.
-    """
-    # Validate and remove virtual path prefix
-    if not artifact_path.startswith(VIRTUAL_PATH_PREFIX):
-        raise HTTPException(status_code=400, detail=f"Path must start with /{VIRTUAL_PATH_PREFIX}")
-    relative_path = artifact_path[len(VIRTUAL_PATH_PREFIX) :].lstrip("/")
-
-    # Build the actual path
-    base_dir = Path(os.getcwd()) / THREAD_DATA_BASE_DIR / thread_id / "user-data"
-    actual_path = base_dir / relative_path
-
-    # Security check: ensure the path is within the thread's user-data directory
-    try:
-        actual_path = actual_path.resolve()
-        base_dir = base_dir.resolve()
-        if not str(actual_path).startswith(str(base_dir)):
-            raise HTTPException(status_code=403, detail="Access denied: path traversal detected")
-    except (ValueError, RuntimeError):
-        raise HTTPException(status_code=400, detail="Invalid path")
-
-    return actual_path
 
 
 def is_text_file_by_content(path: Path, sample_size: int = 8192) -> bool:
@@ -62,66 +24,38 @@ def is_text_file_by_content(path: Path, sample_size: int = 8192) -> bool:
         return False
 
 
-def remove_citations_block(content: str) -> str:
-    """Remove ALL citations from markdown content.
-    
-    Removes:
-    - <citations>...</citations> blocks (complete and incomplete)
-    - [cite-N] references
-    - Citation markdown links that were converted from [cite-N]
-    
-    This is used for downloads to provide clean markdown without any citation references.
-    
-    Args:
-        content: The markdown content that may contain citations blocks.
-        
-    Returns:
-        Clean content with all citations completely removed.
-    """
-    if not content:
-        return content
-    
-    result = content
-    
-    # Step 1: Parse and extract citation URLs before removing blocks
-    citation_urls = set()
-    citations_pattern = r'<citations>([\s\S]*?)</citations>'
-    for match in re.finditer(citations_pattern, content):
-        citations_block = match.group(1)
-        # Extract URLs from JSON lines
-        import json
-        for line in citations_block.split('\n'):
+def _extract_citation_urls(content: str) -> set[str]:
+    """Extract URLs from <citations> JSONL blocks. Format must match frontend core/citations/utils.ts."""
+    urls: set[str] = set()
+    for match in re.finditer(r"<citations>([\s\S]*?)</citations>", content):
+        for line in match.group(1).split("\n"):
             line = line.strip()
-            if line.startswith('{'):
+            if line.startswith("{"):
                 try:
-                    citation = json.loads(line)
-                    if 'url' in citation:
-                        citation_urls.add(citation['url'])
+                    obj = json.loads(line)
+                    if "url" in obj:
+                        urls.add(obj["url"])
                 except (json.JSONDecodeError, ValueError):
                     pass
-    
-    # Step 2: Remove complete citations blocks
-    result = re.sub(r'<citations>[\s\S]*?</citations>', '', result)
-    
-    # Step 3: Remove incomplete citations blocks (at end of content during streaming)
+    return urls
+
+
+def remove_citations_block(content: str) -> str:
+    """Remove ALL citations from markdown (blocks, [cite-N], and citation links). Used for downloads."""
+    if not content:
+        return content
+
+    citation_urls = _extract_citation_urls(content)
+
+    result = re.sub(r"<citations>[\s\S]*?</citations>", "", content)
     if "<citations>" in result:
-        result = re.sub(r'<citations>[\s\S]*$', '', result)
-    
-    # Step 4: Remove all [cite-N] references
-    result = re.sub(r'\[cite-\d+\]', '', result)
-    
-    # Step 5: Remove markdown links that point to citation URLs
-    # Pattern: [text](url)
-    if citation_urls:
-        for url in citation_urls:
-            # Escape special regex characters in URL
-            escaped_url = re.escape(url)
-            result = re.sub(rf'\[[^\]]+\]\({escaped_url}\)', '', result)
-    
-    # Step 6: Clean up extra whitespace and newlines
-    result = re.sub(r'\n{3,}', '\n\n', result)  # Replace 3+ newlines with 2
-    
-    return result.strip()
+        result = re.sub(r"<citations>[\s\S]*$", "", result)
+    result = re.sub(r"\[cite-\d+\]", "", result)
+
+    for url in citation_urls:
+        result = re.sub(rf"\[[^\]]+\]\({re.escape(url)}\)", "", result)
+
+    return re.sub(r"\n{3,}", "\n\n", result).strip()
 
 
 def _extract_file_from_skill_archive(zip_path: Path, internal_path: str) -> bytes | None:
@@ -200,7 +134,7 @@ async def get_artifact(thread_id: str, path: str, request: Request) -> FileRespo
         skill_file_path = path[: marker_pos + len(".skill")]  # e.g., "mnt/user-data/outputs/my-skill.skill"
         internal_path = path[marker_pos + len(skill_marker) :]  # e.g., "SKILL.md"
 
-        actual_skill_path = _resolve_artifact_path(thread_id, skill_file_path)
+        actual_skill_path = resolve_thread_virtual_path(thread_id, skill_file_path)
 
         if not actual_skill_path.exists():
             raise HTTPException(status_code=404, detail=f"Skill file not found: {skill_file_path}")
@@ -226,7 +160,7 @@ async def get_artifact(thread_id: str, path: str, request: Request) -> FileRespo
         except UnicodeDecodeError:
             return Response(content=content, media_type=mime_type or "application/octet-stream", headers=cache_headers)
 
-    actual_path = _resolve_artifact_path(thread_id, path)
+    actual_path = resolve_thread_virtual_path(thread_id, path)
 
     if not actual_path.exists():
         raise HTTPException(status_code=404, detail=f"Artifact not found: {path}")

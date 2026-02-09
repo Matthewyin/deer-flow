@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import re
 import shutil
 import tempfile
@@ -12,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from src.config.extensions_config import ExtensionsConfig, SkillStateConfig, get_extensions_config, reload_extensions_config
+from src.gateway.path_utils import resolve_thread_virtual_path
 from src.skills import Skill, load_skills
 from src.skills.loader import get_skills_root_path
 
@@ -56,51 +56,8 @@ class SkillInstallResponse(BaseModel):
     message: str = Field(..., description="Installation result message")
 
 
-# Base directory for thread data (relative to backend/)
-THREAD_DATA_BASE_DIR = ".deer-flow/threads"
-
-# Virtual path prefix used in sandbox environments (without leading slash for URL path matching)
-VIRTUAL_PATH_PREFIX = "mnt/user-data"
-
 # Allowed properties in SKILL.md frontmatter
 ALLOWED_FRONTMATTER_PROPERTIES = {"name", "description", "license", "allowed-tools", "metadata"}
-
-
-def _resolve_skill_file_path(thread_id: str, virtual_path: str) -> Path:
-    """Resolve a virtual skill file path to the actual filesystem path.
-
-    Args:
-        thread_id: The thread ID.
-        virtual_path: The virtual path (e.g., mnt/user-data/outputs/my-skill.skill).
-
-    Returns:
-        The resolved filesystem path.
-
-    Raises:
-        HTTPException: If the path is invalid or outside allowed directories.
-    """
-    # Remove leading slash if present
-    virtual_path = virtual_path.lstrip("/")
-
-    # Validate and remove virtual path prefix
-    if not virtual_path.startswith(VIRTUAL_PATH_PREFIX):
-        raise HTTPException(status_code=400, detail=f"Path must start with /{VIRTUAL_PATH_PREFIX}")
-    relative_path = virtual_path[len(VIRTUAL_PATH_PREFIX) :].lstrip("/")
-
-    # Build the actual path
-    base_dir = Path(os.getcwd()) / THREAD_DATA_BASE_DIR / thread_id / "user-data"
-    actual_path = base_dir / relative_path
-
-    # Security check: ensure the path is within the thread's user-data directory
-    try:
-        actual_path = actual_path.resolve()
-        base_dir_resolved = base_dir.resolve()
-        if not str(actual_path).startswith(str(base_dir_resolved)):
-            raise HTTPException(status_code=403, detail="Access denied: path traversal detected")
-    except (ValueError, RuntimeError):
-        raise HTTPException(status_code=400, detail="Invalid path")
-
-    return actual_path
 
 
 def _validate_skill_frontmatter(skill_dir: Path) -> tuple[bool, str, str | None]:
@@ -414,7 +371,7 @@ async def install_skill(request: SkillInstallRequest) -> SkillInstallResponse:
     """
     try:
         # Resolve the virtual path to actual file path
-        skill_file_path = _resolve_skill_file_path(request.thread_id, request.path)
+        skill_file_path = resolve_thread_virtual_path(request.thread_id, request.path)
 
         # Check if file exists
         if not skill_file_path.exists():

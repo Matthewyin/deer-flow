@@ -2,8 +2,8 @@
 
 import { Streamdown } from "streamdown";
 
-import about from "./about.md";
+import { aboutMarkdown } from "./about-content";
 
 export function AboutSettingsPage() {
-  return <Streamdown>{about}</Streamdown>;
+  return <Streamdown>{aboutMarkdown}</Streamdown>;
 }

@@ -5,7 +5,7 @@ import { memo, useMemo } from "react";
 import rehypeKatex from "rehype-katex";
 
 import {
-  CitationLink,
+  CitationAwareLink,
   CitationsLoadingIndicator,
 } from "@/components/ai-elements/inline-citation";
 import {
@@ -17,11 +17,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { resolveArtifactURL } from "@/core/artifacts/utils";
 import {
-  type Citation,
-  buildCitationMap,
   isCitationsBlockIncomplete,
-  parseCitations,
   removeAllCitations,
+  useParsedCitations,
 } from "@/core/citations";
 import {
   extractContentFromMessage,
@@ -76,46 +74,6 @@ export function MessageListItem({
 }
 
 /**
- * Custom link component that handles citations and external links
- * Only links in citationMap are rendered as CitationLink badges
- * Other links (project URLs, regular links) are rendered as plain links
- */
-function MessageLink({
-  href,
-  children,
-  citationMap,
-  isHuman,
-}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
-  citationMap: Map<string, Citation>;
-  isHuman: boolean;
-}) {
-  if (!href) return <span>{children}</span>;
-
-  const citation = citationMap.get(href);
-  
-  // Only render as CitationLink badge if it's a citation (in citationMap) and not human message
-  if (citation && !isHuman) {
-    return (
-      <CitationLink citation={citation} href={href}>
-        {children}
-      </CitationLink>
-    );
-  }
-
-  // All other links render as plain links
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-primary underline underline-offset-2 hover:no-underline"
-    >
-      {children}
-    </a>
-  );
-}
-
-/**
  * Custom image component that handles artifact URLs
  */
 function MessageImage({
@@ -158,55 +116,54 @@ function MessageContent_({
   const isHuman = message.type === "human";
   const { thread_id } = useParams<{ thread_id: string }>();
 
-  // Extract and parse citations and uploaded files from message content
-  const { citations, cleanContent, uploadedFiles, isLoadingCitations } =
-    useMemo(() => {
-      const reasoningContent = extractReasoningContentFromMessage(message);
-      const rawContent = extractContentFromMessage(message);
+  // Content to parse for citations (and optionally uploaded files)
+  const { contentToParse, uploadedFiles, isLoadingCitations } = useMemo(() => {
+    const reasoningContent = extractReasoningContentFromMessage(message);
+    const rawContent = extractContentFromMessage(message);
 
-      // When only reasoning content exists (no main content), also parse citations
-      if (!isLoading && reasoningContent && !rawContent) {
-        const { citations, cleanContent } = parseCitations(reasoningContent);
-        return {
-          citations,
-          cleanContent,
-          uploadedFiles: [],
-          isLoadingCitations: false,
-        };
-      }
+    if (!isLoading && reasoningContent && !rawContent) {
+      return {
+        contentToParse: reasoningContent,
+        uploadedFiles: [] as UploadedFile[],
+        isLoadingCitations: false,
+      };
+    }
 
-      // For human messages, parse uploaded files first
-      if (isHuman && rawContent) {
-        const { files, cleanContent: contentWithoutFiles } =
-          parseUploadedFiles(rawContent);
-        const { citations, cleanContent: finalContent } =
-          parseCitations(contentWithoutFiles);
-        return {
-          citations,
-          cleanContent: finalContent,
-          uploadedFiles: files,
-          isLoadingCitations: false,
-        };
-      }
+    if (isHuman && rawContent) {
+      const { files, cleanContent: contentWithoutFiles } =
+        parseUploadedFiles(rawContent);
+      return {
+        contentToParse: contentWithoutFiles,
+        uploadedFiles: files,
+        isLoadingCitations: false,
+      };
+    }
 
-      const { citations, cleanContent } = parseCitations(rawContent ?? "");
-      const isLoadingCitations =
-        isLoading && isCitationsBlockIncomplete(rawContent ?? "");
+    return {
+      contentToParse: rawContent ?? "",
+      uploadedFiles: [] as UploadedFile[],
+      isLoadingCitations:
+        isLoading && isCitationsBlockIncomplete(rawContent ?? ""),
+    };
+  }, [isLoading, message, isHuman]);
 
-      return { citations, cleanContent, uploadedFiles: [], isLoadingCitations };
-    }, [isLoading, message, isHuman]);
-
-  const citationMap = useMemo(() => buildCitationMap(citations), [citations]);
+  const { citations, cleanContent, citationMap } =
+    useParsedCitations(contentToParse);
 
   // Shared markdown components
   const markdownComponents = useMemo(() => ({
     a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <MessageLink {...props} citationMap={citationMap} isHuman={isHuman} />
+      <CitationAwareLink
+        {...props}
+        citationMap={citationMap}
+        isHuman={isHuman}
+        isLoadingCitations={isLoadingCitations}
+      />
     ),
     img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
       <MessageImage {...props} threadId={thread_id} maxWidth={isHuman ? "full" : "90%"} />
     ),
-  }), [citationMap, thread_id, isHuman]);
+  }), [citationMap, thread_id, isHuman, isLoadingCitations]);
 
   // Render message response
   // Human messages use humanMessagePlugins (no autolink) to prevent URL bleeding into adjacent text

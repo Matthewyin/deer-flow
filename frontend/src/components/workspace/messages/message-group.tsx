@@ -25,7 +25,11 @@ import { CodeBlock } from "@/components/ai-elements/code-block";
 import { CitationsLoadingIndicator } from "@/components/ai-elements/inline-citation";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { Button } from "@/components/ui/button";
-import { parseCitations } from "@/core/citations";
+import {
+  getCleanContent,
+  hasCitationsBlock,
+  useParsedCitations,
+} from "@/core/citations";
 import { useI18n } from "@/core/i18n/hooks";
 import {
   extractReasoningContentFromMessage,
@@ -124,7 +128,7 @@ export function MessageGroup({
                       remarkPlugins={streamdownPlugins.remarkPlugins}
                       rehypePlugins={rehypePlugins}
                     >
-                      {parseCitations(step.reasoning ?? "").cleanContent}
+                      {getCleanContent(step.reasoning ?? "")}
                     </MessageResponse>
                   }
                 ></ChainOfThoughtStep>
@@ -177,10 +181,7 @@ export function MessageGroup({
                     remarkPlugins={streamdownPlugins.remarkPlugins}
                     rehypePlugins={rehypePlugins}
                   >
-                    {
-                      parseCitations(lastReasoningStep.reasoning ?? "")
-                        .cleanContent
-                    }
+                    {getCleanContent(lastReasoningStep.reasoning ?? "")}
                   </MessageResponse>
                 }
               ></ChainOfThoughtStep>
@@ -215,12 +216,8 @@ function ToolCall({
   const { thread } = useThread();
   const threadIsLoading = thread.isLoading;
 
-  // Move useMemo to top level to comply with React Hooks rules
   const fileContent = typeof args.content === "string" ? args.content : "";
-  const { citations } = useMemo(
-    () => parseCitations(fileContent),
-    [fileContent],
-  );
+  const { citations } = useParsedCitations(fileContent);
 
   if (name === "web_search") {
     let label: React.ReactNode = t.toolCalls.searchForRelatedInfo;
@@ -232,13 +229,11 @@ function ToolCall({
         {Array.isArray(result) && (
           <ChainOfThoughtSearchResults>
             {result.map((item) => (
-              <Tooltip key={item.url} content={item.snippet}>
-                <ChainOfThoughtSearchResult key={item.url}>
-                  <a href={item.url} target="_blank" rel="noreferrer">
-                    {item.title}
-                  </a>
-                </ChainOfThoughtSearchResult>
-              </Tooltip>
+              <ChainOfThoughtSearchResult key={item.url}>
+                <a href={item.url} target="_blank" rel="noreferrer">
+                  {item.title}
+                </a>
+              </ChainOfThoughtSearchResult>
             ))}
           </ChainOfThoughtSearchResults>
         )}
@@ -309,11 +304,9 @@ function ToolCall({
       >
         <ChainOfThoughtSearchResult>
           {url && (
-            <Tooltip content={<pre>{result as string}</pre>}>
-              <a href={url} target="_blank" rel="noreferrer">
-                {title}
-              </a>
-            </Tooltip>
+            <a href={url} target="_blank" rel="noreferrer">
+              {title}
+            </a>
           )}
         </ChainOfThoughtSearchResult>
       </ChainOfThoughtStep>
@@ -328,11 +321,9 @@ function ToolCall({
     return (
       <ChainOfThoughtStep key={id} label={description} icon={FolderOpenIcon}>
         {path && (
-          <Tooltip content={<pre>{result as string}</pre>}>
-            <ChainOfThoughtSearchResult className="cursor-pointer">
-              {path}
-            </ChainOfThoughtSearchResult>
-          </Tooltip>
+          <ChainOfThoughtSearchResult className="cursor-pointer">
+            {path}
+          </ChainOfThoughtSearchResult>
         )}
       </ChainOfThoughtStep>
     );
@@ -346,17 +337,9 @@ function ToolCall({
     return (
       <ChainOfThoughtStep key={id} label={description} icon={BookOpenTextIcon}>
         {path && (
-          <Tooltip
-            content={
-              <pre className="max-w-[95vw] whitespace-pre-wrap">
-                {result as string}
-              </pre>
-            }
-          >
-            <ChainOfThoughtSearchResult className="cursor-pointer">
-              {path}
-            </ChainOfThoughtSearchResult>
-          </Tooltip>
+          <ChainOfThoughtSearchResult className="cursor-pointer">
+            {path}
+          </ChainOfThoughtSearchResult>
         )}
       </ChainOfThoughtStep>
     );
@@ -384,9 +367,8 @@ function ToolCall({
     const isMarkdown =
       path?.toLowerCase().endsWith(".md") ||
       path?.toLowerCase().endsWith(".markdown");
-    const hasCitationsBlock = fileContent.includes("<citations>");
     const showCitationsLoading =
-      isMarkdown && threadIsLoading && hasCitationsBlock && isLast;
+      isMarkdown && threadIsLoading && hasCitationsBlock(fileContent) && isLast;
 
     return (
       <>
@@ -405,11 +387,9 @@ function ToolCall({
           }}
         >
           {path && (
-            <Tooltip content={t.toolCalls.clickToViewContent}>
-              <ChainOfThoughtSearchResult className="cursor-pointer">
-                {path}
-              </ChainOfThoughtSearchResult>
-            </Tooltip>
+            <ChainOfThoughtSearchResult className="cursor-pointer">
+              {path}
+            </ChainOfThoughtSearchResult>
           )}
         </ChainOfThoughtStep>
         {showCitationsLoading && (
@@ -433,14 +413,12 @@ function ToolCall({
         icon={SquareTerminalIcon}
       >
         {command && (
-          <Tooltip content={<pre>{result as string}</pre>}>
-            <CodeBlock
-              className="mx-0 cursor-pointer border-none px-0"
-              showLineNumbers={false}
-              language="bash"
-              code={command}
-            />
-          </Tooltip>
+          <CodeBlock
+            className="mx-0 cursor-pointer border-none px-0"
+            showLineNumbers={false}
+            language="bash"
+            code={command}
+          />
         )}
       </ChainOfThoughtStep>
     );

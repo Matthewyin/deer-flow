@@ -60,6 +60,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 
+import { ModeHoverGuide } from "./mode-hover-guide";
 import { Tooltip } from "./tooltip";
 
 export function InputBox({
@@ -197,31 +198,42 @@ export function InputBox({
           </PromptInputActionMenu> */}
           <AddAttachmentsButton className="px-2!" />
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger className="gap-1! px-2!">
-              <div>
-                {context.mode === "flash" && <ZapIcon className="size-3" />}
-                {context.mode === "thinking" && (
-                  <LightbulbIcon className="size-3" />
-                )}
-                {context.mode === "pro" && (
-                  <GraduationCapIcon className="size-3" />
-                )}
-                {context.mode === "ultra" && (
-                  <RocketIcon className="size-3 text-[#dabb5e]" />
-                )}
-              </div>
-              <div
-                className={cn(
-                  "text-xs font-normal",
-                  context.mode === "ultra" ? "golden-text" : "",
-                )}
-              >
-                {(context.mode === "flash" && t.inputBox.flashMode) ||
-                  (context.mode === "thinking" && t.inputBox.reasoningMode) ||
-                  (context.mode === "pro" && t.inputBox.proMode) ||
-                  (context.mode === "ultra" && t.inputBox.ultraMode)}
-              </div>
-            </PromptInputActionMenuTrigger>
+            <ModeHoverGuide
+              mode={
+                context.mode === "flash" ||
+                context.mode === "thinking" ||
+                context.mode === "pro" ||
+                context.mode === "ultra"
+                  ? context.mode
+                  : "flash"
+              }
+            >
+              <PromptInputActionMenuTrigger className="gap-1! px-2!">
+                <div>
+                  {context.mode === "flash" && <ZapIcon className="size-3" />}
+                  {context.mode === "thinking" && (
+                    <LightbulbIcon className="size-3" />
+                  )}
+                  {context.mode === "pro" && (
+                    <GraduationCapIcon className="size-3" />
+                  )}
+                  {context.mode === "ultra" && (
+                    <RocketIcon className="size-3 text-[#dabb5e]" />
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "text-xs font-normal",
+                    context.mode === "ultra" ? "golden-text" : "",
+                  )}
+                >
+                  {(context.mode === "flash" && t.inputBox.flashMode) ||
+                    (context.mode === "thinking" && t.inputBox.reasoningMode) ||
+                    (context.mode === "pro" && t.inputBox.proMode) ||
+                    (context.mode === "ultra" && t.inputBox.ultraMode)}
+                </div>
+              </PromptInputActionMenuTrigger>
+            </ModeHoverGuide>
             <PromptInputActionMenuContent className="w-80">
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="text-muted-foreground text-xs">

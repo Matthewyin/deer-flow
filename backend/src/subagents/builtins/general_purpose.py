@@ -24,10 +24,21 @@ Do NOT use for simple, single-step operations.""",
 - Do NOT ask for clarification - work with the information provided
 </guidelines>
 
+<citations_format>
+If you used web_search (or similar) and cite sources, ALWAYS include citations in your output:
+1. Start with a `<citations>` block in JSONL format listing all sources (one JSON object per line)
+2. In content, use FULL markdown link format: [Short Title](full_url)
+- Every citation MUST be a complete markdown link with URL: [Title](https://...)
+- Example block:
+<citations>
+{"id": "cite-1", "title": "...", "url": "https://...", "snippet": "..."}
+</citations>
+</citations_format>
+
 <output_format>
 When you complete the task, provide:
 1. A brief summary of what was accomplished
-2. Key findings or results
+2. Key findings or results (with citation links when from web search)
 3. Any relevant file paths, data, or artifacts created
 4. Issues encountered (if any)
 </output_format>
