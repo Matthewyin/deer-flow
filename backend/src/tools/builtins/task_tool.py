@@ -3,12 +3,14 @@
 import logging
 import time
 import uuid
+from dataclasses import replace
 from typing import Annotated, Literal
 
 from langchain.tools import InjectedToolCallId, ToolRuntime, tool
 from langgraph.config import get_stream_writer
 from langgraph.typing import ContextT
 
+from src.agents.lead_agent.prompt import get_skills_prompt_section
 from src.agents.thread_state import ThreadState
 from src.subagents import SubagentExecutor, get_subagent_config
 from src.subagents.executor import SubagentStatus, get_background_task_result
@@ -60,12 +62,18 @@ def task_tool(
     if config is None:
         return f"Error: Unknown subagent type '{subagent_type}'. Available: general-purpose, bash"
 
-    # Override max_turns if specified
-    if max_turns is not None:
-        # Create a copy with updated max_turns
-        from dataclasses import replace
+    # Build config overrides
+    overrides: dict = {}
 
-        config = replace(config, max_turns=max_turns)
+    skills_section = get_skills_prompt_section()
+    if skills_section:
+        overrides["system_prompt"] = config.system_prompt + "\n\n" + skills_section
+
+    if max_turns is not None:
+        overrides["max_turns"] = max_turns
+
+    if overrides:
+        config = replace(config, **overrides)
 
     # Extract parent context from runtime
     sandbox_state = None
@@ -118,7 +126,6 @@ def task_tool(
     # Send Task Started message'
     writer({"type": "task_started", "task_id": task_id, "description": description})
 
-
     while True:
         result = get_background_task_result(task_id)
 
@@ -138,13 +145,15 @@ def task_tool(
             # Send task_running event for each new message
             for i in range(last_message_count, current_message_count):
                 message = result.ai_messages[i]
-                writer({
-                    "type": "task_running",
-                    "task_id": task_id,
-                    "message": message,
-                    "message_index": i + 1,  # 1-based index for display
-                    "total_messages": current_message_count
-                })
+                writer(
+                    {
+                        "type": "task_running",
+                        "task_id": task_id,
+                        "message": message,
+                        "message_index": i + 1,  # 1-based index for display
+                        "total_messages": current_message_count,
+                    }
+                )
                 logger.info(f"[trace={trace_id}] Task {task_id} sent message #{i + 1}/{current_message_count}")
             last_message_count = current_message_count
 

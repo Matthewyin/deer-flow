@@ -224,21 +224,7 @@ User: "staging"
 You: "Deploying to staging..." [proceed]
 </clarification_system>
 
-<skill_system>
-You have access to skills that provide optimized workflows for specific tasks. Each skill contains best practices, frameworks, and references to additional resources.
-
-**Progressive Loading Pattern:**
-1. When a user query matches a skill's use case, immediately call `read_file` on the skill's main file using the path attribute provided in the skill tag below
-2. Read and understand the skill's workflow and instructions
-3. The skill file contains references to external resources under the same folder
-4. Load referenced resources only when needed during execution
-5. Follow the skill's instructions precisely
-
-**Skills are located at:** {skills_base_path}
-
-{skills_list}
-
-</skill_system>
+{skills_section}
 
 {subagent_section}
 
@@ -266,7 +252,10 @@ You have access to skills that provide optimized workflows for specific tasks. E
 - Format: Use Markdown link format `[citation:TITLE](URL)`
 - Example: 
 ```markdown
-The key AI trends for 2026 include enhanced reasoning capabilities and multimodal integration [citation:AI Trends 2026](https://techcrunch.com/ai-trends). Recent breakthroughs in language models have also accelerated progress [citation:OpenAI Research](https://openai.com/research).
+The key AI trends for 2026 include enhanced reasoning capabilities and multimodal integration
+[citation:AI Trends 2026](https://techcrunch.com/ai-trends).
+Recent breakthroughs in language models have also accelerated progress
+[citation:OpenAI Research](https://openai.com/research).
 ```
 </citations>
 
@@ -313,29 +302,48 @@ def _get_memory_context() -> str:
         return ""
 
 
-def apply_prompt_template(subagent_enabled: bool = False) -> str:
-    # Load only enabled skills
+def get_skills_prompt_section() -> str:
+    """Generate the skills prompt section with available skills list.
+
+    Returns the <skill_system>...</skill_system> block listing all enabled skills,
+    suitable for injection into any agent's system prompt.
+    """
     skills = load_skills(enabled_only=True)
 
-    # Get config
     try:
         from src.config import get_app_config
 
         config = get_app_config()
         container_base_path = config.skills.container_path
     except Exception:
-        # Fallback to defaults if config fails
         container_base_path = "/mnt/skills"
 
-    # Generate skills list XML with paths (path points to SKILL.md file)
-    if skills:
-        skill_items = "\n".join(
-            f"    <skill>\n        <name>{skill.name}</name>\n        <description>{skill.description}</description>\n        <location>{skill.get_container_file_path(container_base_path)}</location>\n    </skill>" for skill in skills
-        )
-        skills_list = f"<available_skills>\n{skill_items}\n</available_skills>"
-    else:
-        skills_list = "<!-- No skills available -->"
+    if not skills:
+        return ""
 
+    skill_items = "\n".join(
+        f"    <skill>\n        <name>{skill.name}</name>\n        <description>{skill.description}</description>\n        <location>{skill.get_container_file_path(container_base_path)}</location>\n    </skill>" for skill in skills
+    )
+    skills_list = f"<available_skills>\n{skill_items}\n</available_skills>"
+
+    return f"""<skill_system>
+You have access to skills that provide optimized workflows for specific tasks. Each skill contains best practices, frameworks, and references to additional resources.
+
+**Progressive Loading Pattern:**
+1. When a user query matches a skill's use case, immediately call `read_file` on the skill's main file using the path attribute provided in the skill tag below
+2. Read and understand the skill's workflow and instructions
+3. The skill file contains references to external resources under the same folder
+4. Load referenced resources only when needed during execution
+5. Follow the skill's instructions precisely
+
+**Skills are located at:** {container_base_path}
+
+{skills_list}
+
+</skill_system>"""
+
+
+def apply_prompt_template(subagent_enabled: bool = False) -> str:
     # Get memory context
     memory_context = _get_memory_context()
 
@@ -360,10 +368,12 @@ def apply_prompt_template(subagent_enabled: bool = False) -> str:
         else ""
     )
 
+    # Get skills section
+    skills_section = get_skills_prompt_section()
+
     # Format the prompt with dynamic skills and memory
     prompt = SYSTEM_PROMPT_TEMPLATE.format(
-        skills_list=skills_list,
-        skills_base_path=container_base_path,
+        skills_section=skills_section,
         memory_context=memory_context,
         subagent_section=subagent_section,
         subagent_reminder=subagent_reminder,
