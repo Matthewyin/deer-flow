@@ -369,9 +369,7 @@ class SubagentExecutor:
                         _background_tasks[task_id].completed_at = datetime.now()
                         _background_tasks[task_id].ai_messages = exec_result.ai_messages
                 except FuturesTimeoutError:
-                    logger.error(
-                        f"[trace={self.trace_id}] Subagent {self.config.name} execution timed out after {self.config.timeout_seconds}s"
-                    )
+                    logger.error(f"[trace={self.trace_id}] Subagent {self.config.name} execution timed out after {self.config.timeout_seconds}s")
                     with _background_tasks_lock:
                         _background_tasks[task_id].status = SubagentStatus.TIMED_OUT
                         _background_tasks[task_id].error = f"Execution timed out after {self.config.timeout_seconds} seconds"

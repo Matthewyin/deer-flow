@@ -32,6 +32,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+
 async def main():
     # Initialize MCP tools at startup
     try:

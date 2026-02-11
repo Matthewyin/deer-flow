@@ -227,7 +227,8 @@ def _build_middlewares(config: RunnableConfig):
     # Add SubagentLimitMiddleware to truncate excess parallel task calls
     subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
     if subagent_enabled:
-        middlewares.append(SubagentLimitMiddleware())
+        max_concurrent_subagents = config.get("configurable", {}).get("max_concurrent_subagents", 3)
+        middlewares.append(SubagentLimitMiddleware(max_concurrent=max_concurrent_subagents))
 
     # ClarificationMiddleware should always be last
     middlewares.append(ClarificationMiddleware())
@@ -246,11 +247,12 @@ def make_lead_agent(config: RunnableConfig):
     model_name = config.get("configurable", {}).get("model_name") or config.get("configurable", {}).get("model")
     is_plan_mode = config.get("configurable", {}).get("is_plan_mode", False)
     subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
-    print(f"thinking_enabled: {thinking_enabled}, model_name: {model_name}, is_plan_mode: {is_plan_mode}, subagent_enabled: {subagent_enabled}")
+    max_concurrent_subagents = config.get("configurable", {}).get("max_concurrent_subagents", 3)
+    print(f"thinking_enabled: {thinking_enabled}, model_name: {model_name}, is_plan_mode: {is_plan_mode}, subagent_enabled: {subagent_enabled}, max_concurrent_subagents: {max_concurrent_subagents}")
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled),
         tools=get_available_tools(model_name=model_name, subagent_enabled=subagent_enabled),
         middleware=_build_middlewares(config),
-        system_prompt=apply_prompt_template(subagent_enabled=subagent_enabled),
+        system_prompt=apply_prompt_template(subagent_enabled=subagent_enabled, max_concurrent_subagents=max_concurrent_subagents),
         state_schema=ThreadState,
     )
