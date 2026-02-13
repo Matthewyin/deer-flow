@@ -6,13 +6,23 @@ export const aboutMarkdown = `# 🦌 [About DeerFlow 2.0](https://github.com/byt
 
 > **From Open Source, Back to Open Source**
 
-**DeerFlow** (**D**eep **E**xploration and **E**fficient **R**esearch **Flow**) is a community-driven SuperAgent harness that researches, codes, and creates.
-With the help of sandboxes, memories, tools and skills, it handles
-different levels of tasks that could take minutes to hours.
+DeerFlow (**D**eep **E**xploration and **E**fficient **R**esearch **Flow**) is an open-source **super agent harness** that orchestrates **sub-agents**, **memory**, and **sandboxes** to do almost anything — powered by **extensible skills**.
+
+---
+
+## 🚀 Core Features
+
+* **Skills & Tools**: With built-in and extensible skills and tools, DeerFlow can do almost anything.
+* **Sub-Agents**: Sub-Agents help the main agent to do the tasks that are too complex to be done by the main agent.
+* **Sandbox & File System**: Safely execute code and manipulate files in the sandbox.
+* **Context Engineering**: Isolated sub-agent context, summarization to keep the context window sharp.
+* **Long-Term Memory**: Keep recording the user's profile, top of mind, and conversation history.
 
 ---
 
 ## 🌟 GitHub Repository
+
+![Star History Chart](https://api.star-history.com/svg?repos=bytedance/deer-flow&type=Date)
 
 Explore DeerFlow on GitHub: [github.com/bytedance/deer-flow](https://github.com/bytedance/deer-flow)
 
