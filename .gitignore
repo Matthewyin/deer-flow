@@ -56,3 +56,17 @@ backend/Dockerfile.langgraph
 config.yaml.bak
 .playwright-mcp
 .gstack/
+
+# User specified exclusions - DO NOT UPLOAD
+resources/
+
+# Runtime data that may contain user info
+backend/.deer-flow/
+logs/
+*.log
+
+# Additional sensitive files
+.env.local
+.env.*.local
+secrets/
+credentials/
