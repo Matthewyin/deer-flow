@@ -168,6 +168,75 @@ graph TD
 
 ---
 
+### 2.4 数据存储策略
+
+根据数据特性和查询需求，采用**三类存储分层架构**：
+
+```mermaid
+flowchart TB
+    subgraph DataTypes["数据类型分类"]
+        D1[结构化配置数据
+        带宽策略/设备清单
+        固定Schema]
+        
+        D2[时序数据
+        设备运行状态
+        时间序列]
+        
+        D3[非结构化知识
+        故障案例/SOP/配置基线
+        语义检索]
+    end
+
+    subgraph StorageLayer["存储层选择"]
+        S1[(SQLite
+        关系型数据库)]
+        
+        S2[(InfluxDB
+        时序数据库)]
+        
+        S3[(Chroma
+        向量数据库)]
+    end
+
+    subgraph QueryPattern["查询方式"]
+        Q1[精确查询
+        SQL =/=/<>/>/<]
+        
+        Q2[聚合查询
+        时间范围/统计]
+        
+        Q3[语义检索
+        相似度匹配]
+    end
+
+    D1 --> S1 --> Q1
+    D2 --> S2 --> Q2
+    D3 --> S3 --> Q3
+```
+
+#### 存储选型决策矩阵
+
+| 数据类型 | 存储方案 | 选型理由 | 示例 |
+|---------|---------|---------|------|
+| **带宽策略表** | **SQLite** | 固定Schema，精确数值匹配，无需Embedding | 档位/阈值/目标带宽 |
+| **设备清单** | **SQLite** | 关系型数据，多表关联，CRUD操作 | 800台设备信息 |
+| **运行状态** | **InfluxDB** | 高写入吞吐，时间序列聚合，保留策略 | CPU/内存/流量指标 |
+| **配置基线** | **Chroma** | 文本相似度对比，语义检索 | 配置模板合规检查 |
+| **故障案例** | **Chroma** | 自然语言检索，语义匹配 | 相似故障解决方案 |
+| **异常模式** | **Chroma** | 向量聚类，模式识别 | 历史异常特征 |
+
+#### 为什么不全用向量数据库？
+
+| 场景 | 向量检索 | SQL查询 | 说明 |
+|------|---------|---------|------|
+| "10M带宽阈值是多少" | ❌ 不准确 | ✅ 精确匹配 | 数值比较不应语义化 |
+| "当前5M流量是否超标" | ❌ 需推理 | ✅ 直接比较 | 5 > 4.0 是数值运算 |
+| "历史相似故障有哪些" | ✅ 语义匹配 | ❌ 无法检索 | 需要理解描述相似性 |
+
+**结论**: 结构化数据用SQLite，非结构化知识用Chroma，时序数据用InfluxDB。
+
+
 ## 3. 模块详细设计
 
 ### 3.1 Tools 模块 (DeerFlow 内)
@@ -540,6 +609,126 @@ devices:
 ```
 
 ---
+
+
+### 3.5 带宽策略管理模块 (示例：结构化数据+RAG混合)
+
+#### 3.5.1 模块定位
+
+带宽策略模块作为**最小可行产品(MVP)**，验证 DeerFlow 工具+RAG 的集成能力。
+
+**设计演进**:
+- **V1 (当前)**: 硬编码 → 验证 Tool 接口
+- **V2 (计划中)**: SQLite 存储 → 支持动态修改
+- **V3 (可选)**: SQLite + Chroma 混合 → 支持自然语言查询
+
+#### 3.5.2 数据模型
+
+```sql
+-- SQLite Schema
+CREATE TABLE bandwidth_tiers (
+    id INTEGER PRIMARY KEY,
+    current_bw_mbps INTEGER NOT NULL,        -- 当前带宽 (Mbps)
+    scale_up_threshold_mbps REAL NOT NULL,   -- 扩容阈值
+    scale_up_target_mbps INTEGER NOT NULL,   -- 扩容目标
+    scale_down_threshold_mbps REAL,          -- 缩容阈值 (可为NULL)
+    scale_down_target_mbps INTEGER,          -- 缩容目标 (可为NULL)
+    description TEXT,                        -- 策略描述
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 初始化数据
+INSERT INTO bandwidth_tiers VALUES
+(1, 2, 0.8, 4, NULL, NULL, '最低配置，不支持缩容'),
+(2, 4, 1.6, 6, 0.7, 2, '标准档位'),
+(3, 6, 2.4, 8, 1.4, 4, '标准档位'),
+(4, 8, 3.2, 10, 2.1, 6, '标准档位'),
+(5, 10, 4.0, 20, 2.8, 8, '跳档扩容到20M'),
+(6, 20, 8.0, 30, 3.5, 10, '大带宽档位'),
+(7, 30, 12.0, 40, 7.0, 20, '大带宽档位'),
+(8, 40, 16.0, 50, 10.5, 30, '大带宽档位');
+```
+
+#### 3.5.3 查询逻辑
+
+```python
+# 精确查询 (SQLite)
+def get_recommendation_sqlite(current_bw_mbps: int, traffic_mbps: float) -> dict:
+    """SQL直接查询，O(1)复杂度"""
+    
+    tier = db.execute(
+        "SELECT * FROM bandwidth_tiers WHERE current_bw_mbps = ?",
+        (current_bw_mbps,)
+    ).fetchone()
+    
+    if not tier:
+        return {"action": "unknown", "reason": "带宽档位不存在"}
+    
+    # 数值比较
+    if traffic_mbps > tier.scale_up_threshold_mbps:
+        return {
+            "action": "scale_up",
+            "target_bw": tier.scale_up_target_mbps,
+            "reasoning": f"流量{traffic_mbps} > 阈值{tier.scale_up_threshold_mbps}"
+        }
+    elif tier.scale_down_threshold_mbps and traffic_mbps < tier.scale_down_threshold_mbps:
+        return {
+            "action": "scale_down", 
+            "target_bw": tier.scale_down_target_mbps,
+            "reasoning": f"流量{traffic_mbps} < 阈值{tier.scale_down_threshold_mbps}"
+        }
+    else:
+        return {"action": "maintain", "reasoning": "流量在合理范围内"}
+
+# 语义查询 (Chroma) - V3可选
+def query_natural_language(query: str) -> list:
+    """自然语言查询，用于模糊描述"""
+    return chroma.similarity_search(query, k=2)
+    # 例: "流量很高怎么办" → 匹配到 "scale_up" 相关文档
+```
+
+#### 3.5.4 与整体架构的关系
+
+```mermaid
+flowchart LR
+    subgraph Agent["dedi Agent"]
+        A[用户查询
+        "10M带宽流量5M"]
+    end
+
+    subgraph Tools["Tools层"]
+        T1[bandwidth_policy_query
+        结构化查询]
+        T2[network_config_check
+        配置检查]
+        T3[incident_retrieve
+        故障检索]
+    end
+
+    subgraph Storage["存储层"]
+        S1[(SQLite
+        带宽策略表)]
+        S2[(Chroma
+        故障知识库)]
+    end
+
+    A --> T1
+    T1 -->|SQL| S1
+    T2 -->|向量检索| S2
+    T3 -->|向量检索| S2
+```
+
+#### 3.5.5 实现路径
+
+| 阶段 | 存储方案 | 查询方式 | 开发周期 | 适用场景 |
+|------|---------|---------|---------|---------|
+| **MVP** | Python Dict | 内存查找 | 1天 | 验证接口 |
+| **V1.1** | SQLite | SQL查询 | 2天 | 生产使用 |
+| **V1.2** | SQLite+Chroma | SQL+语义 | 3天 | 支持自然语言 |
+
+**当前状态**: MVP 已完成 (Python Dict + Chroma 混合)
+**下一步**: 迁移到 SQLite 存储
 
 ## 4. 数据流设计
 
