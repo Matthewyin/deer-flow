@@ -35,90 +35,60 @@
 
 ### 2.1 整体架构图
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         用户交互层 (DeerFlow Web UI)                     │
-│                    ┌─────────────────────────────────┐                  │
-│                    │  Agent 选择器: dedi (网络运维)   │                  │
-│                    └─────────────────────────────────┘                  │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         DeerFlow Agent 层                               │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  dedi Agent (网络运维专家)                                       │   │
-│  │  ├── SOUL.md: 技术验证、RAG查询、报告生成                         │   │
-│  │  ├── Tools:                                                     │   │
-│  │  │   ├── network_config_check()    # 配置基线比对                │   │
-│  │  │   ├── network_status_analyze()  # 运行状态分析                │   │
-│  │  │   ├── incident_retrieve()       # 故障知识检索                │   │
-│  │  │   └── report_generate()         # 生成巡检报告                │   │
-│  │  └── Subagent 委派:                                              │   │
-│  │      ├── 多设备并行检查 (最大3并发)                               │   │
-│  │      └── 长时间任务后台执行                                      │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                    │                                    │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  RAG 模块 (LangChain + Chroma)                                  │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │   │
-│  │  │ 配置基线库   │  │ 故障案例库   │  │ 异常模式库   │          │   │
-│  │  │config_baseline│  │ incident_kb  │  │status_pattern│          │   │
-│  │  │ (Chroma)     │  │ (Chroma)     │  │ (Chroma)     │          │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘          │   │
-│  │                                                                  │   │
-│  │  Embedding: bge-m3 (Ollama)                                     │   │
-│  │  - 维度: 1024                                                   │   │
-│  │  - 上下文: 8192 tokens                                          │   │
-│  │  - 语言: 中英双语优化                                           │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    │ MCP 协议
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     MCP Server: deerflow-network-mcp                    │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  Tools:                                                         │   │
-│  │  ├── query_device_metrics(device, metric, time_range)           │   │
-│  │  │   └── 查询 InfluxDB 时序数据                                  │   │
-│  │  ├── calculate_rolling_baseline(device, metric, days)           │   │
-│  │  │   └── 计算滚动基线 (24×60分钟维度)                            │   │
-│  │  ├── detect_anomaly(device, metric, current_value)              │   │
-│  │  │   └── 异常检测，返回偏离度和置信度                            │   │
-│  │  └── compare_with_baseline(device, config_text)                 │   │
-│  │      └── 配置文本与基线对比                                      │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    ▼                               ▼
-┌─────────────────────────────┐     ┌─────────────────────────────┐
-│    时序数据库 (InfluxDB)     │     │    向量数据库 (Chroma)       │
-│  ┌─────────────────────┐    │     │  ┌─────────────────────┐    │
-│  │ 设备运行状态数据     │    │     │  │ 运行状态异常向量    │    │
-│  │ (每分钟原始数据)     │    │     │  │ (异常模式语义化)    │    │
-│  │ RP: core_30d        │    │     │  └─────────────────────┘    │
-│  │     non_core_7d     │    │     └─────────────────────────────┘
-│  └─────────────────────┘    │
-│  ┌─────────────────────┐    │
-│  │ 滚动基线数据         │    │
-│  │ (24×60分钟均值)      │    │
-│  │ 连续查询自动更新     │    │
-│  └─────────────────────┘    │
-└─────────────────────────────┘
-                                    ▲
-                                    │ 写入 (HTTP API)
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      数据采集服务 (network-collector)                   │
-│  ┌────────────┐    ┌────────────┐    ┌────────────┐                    │
-│  │ SNMP采集器 │    │ SSH采集器  │    │ 基线计算   │                    │
-│  │ (800设备)  │    │ (配置采集) │    │ 定时任务   │                    │
-│  │ - CPU      │    │ - 配置文本 │    │ - 滚动平均 │                    │
-│  │ - 内存     │    │ - 路由表   │    │ - 异常检测 │                    │
-│  │ - 流量     │    │ - 接口状态 │    │            │                    │
-│  └────────────┘    └────────────┘    └────────────┘                    │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph UI["用户交互层"]
+        A[DeerFlow Web UI<br/>Agent选择器: dedi]
+    end
+
+    subgraph AgentLayer["DeerFlow Agent层"]
+        subgraph Dedi["dedi Agent (网络运维专家)"]
+            B1[SOUL.md<br/>技术验证/RAG查询/报告生成]
+            B2[Tools]
+            B3[Subagent委派]
+        end
+
+        subgraph RAG["RAG模块 (LangChain + Chroma)"]
+            C1[(配置基线库<br/>config_baseline)]
+            C2[(故障案例库<br/>incident_kb)]
+            C3[(异常模式库<br/>status_pattern)]
+            C4[Embedding: bge-m3 (Ollama)<br/>1024维/8192 tokens/中英双语]
+        end
+    end
+
+    subgraph MCP["MCP Server: deerflow-network-mcp"]
+        D1[query_device_metrics<br/>查询InfluxDB时序数据]
+        D2[calculate_rolling_baseline<br/>计算滚动基线 24×60]
+        D3[detect_anomaly<br/>异常检测偏离度/置信度]
+        D4[compare_with_baseline<br/>配置文本对比]
+    end
+
+    subgraph Storage["数据存储层"]
+        subgraph InfluxDB["时序数据库 (InfluxDB)"]
+            E1[(设备运行状态数据<br/>每分钟原始数据)]
+            E2[(滚动基线数据<br/>24×60分钟均值)]
+            E3[RP: core_30d / non_core_7d]
+        end
+
+        subgraph ChromaDB["向量数据库 (Chroma)"]
+            F1[(运行状态异常向量<br/>异常模式语义化)]
+        end
+    end
+
+    subgraph Collector["数据采集服务 (network-collector)"]
+        G1[SNMP采集器<br/>(800设备)<br/>CPU/内存/流量]
+        G2[SSH采集器<br/>配置文本/路由表/接口状态]
+        G3[基线计算<br/>滚动平均/异常检测]
+    end
+
+    A --> Dedi
+    B2 --> RAG
+    Dedi -->|MCP协议| MCP
+    MCP --> InfluxDB
+    MCP -.-> ChromaDB
+    Collector -->|HTTP API写入| InfluxDB
+    G1 --> G3
+    G2 --> G3
 ```
 
 ### 2.2 技术栈汇总
@@ -138,55 +108,62 @@
 
 ### 2.3 项目结构
 
-```
-deep-flow/
-├── backend/
-│   └── packages/harness/deerflow/
-│       ├── agents/
-│       │   └── lead_agent/
-│       │       └── prompt.py              # 已支持 agent_name 加载 SOUL.md
-│       ├── tools/
-│       │   ├── __init__.py
-│       │   ├── network_config.py          # 配置基线检查 Tool
-│       │   ├── network_status.py          # 运行状态分析 Tool
-│       │   └── incident_query.py          # 故障知识检索 Tool
-│       └── rag/
-│           ├── __init__.py
-│           ├── config_baseline.py         # 配置基线 RAG
-│           ├── incident_kb.py             # 故障知识库 RAG
-│           └── status_pattern.py          # 异常模式向量存储
-├── backend/.deer-flow/
-│   └── agents/
-│       └── dedi/
-│           ├── config.yaml                # 已存在
-│           └── SOUL.md                    # 已存在，网络运维专家定义
-├── mcp-servers/
-│   └── deerflow-network-mcp/
-│       ├── src/
-│       │   ├── __init__.py
-│       │   ├── server.py                  # MCP Server入口
-│       │   ├── influx_client.py           # InfluxDB查询封装
-│       │   ├── baseline_calculator.py     # 滚动基线计算
-│       │   └── anomaly_detector.py        # 异常检测算法
-│       ├── pyproject.toml
-│       └── README.md
-├── collectors/
-│   └── network-collector/
-│       ├── src/
-│       │   ├── __init__.py
-│       │   ├── main.py                    # 采集服务主入口
-│       │   ├── snmp_poller.py             # SNMP轮询器
-│       │   ├── ssh_collector.py           # SSH配置采集
-│       │   ├── influx_writer.py           # 数据写入InfluxDB
-│       │   └── baseline_aggregator.py     # 基线聚合计算
-│       ├── config/
-│       │   └── devices.yaml               # 设备清单(800台)
-│       ├── pyproject.toml
-│       └── Dockerfile
-├── docker/
-│   └── docker-compose-network-ops.yaml    # 运维系统专用compose
-└── docs/superpowers/specs/
-    └── 2026-04-06-network-ops-rag-design.md  # 本文档
+```mermaid
+graph TD
+    root["deer-flow/"] --> backend["backend/"]
+    root --> backend2["backend/.deer-flow/"]
+    root --> mcp["mcp-servers/"]
+    root --> collectors["collectors/"]
+    root --> docker["docker/"]
+    root --> docs["docs/"]
+
+    backend --> harness["packages/harness/deerflow/"]
+    harness --> agents["agents/lead_agent/"]
+    agents --> prompt["prompt.py<br/>已支持agent_name加载SOUL.md"]
+
+    harness --> tools["tools/"]
+    tools --> init1["__init__.py"]
+    tools --> netconfig["network_config.py<br/>配置基线检查Tool"]
+    tools --> netstatus["network_status.py<br/>运行状态分析Tool"]
+    tools --> incident["incident_query.py<br/>故障知识检索Tool"]
+
+    harness --> rag["rag/"]
+    rag --> init2["__init__.py"]
+    rag --> configbase["config_baseline.py<br/>配置基线RAG"]
+    rag --> incidentkb["incident_kb.py<br/>故障知识库RAG"]
+    rag --> statuspattern["status_pattern.py<br/>异常模式向量存储"]
+
+    backend2 --> agents2["agents/dedi/"]
+    agents2 --> configdedi["config.yaml<br/>已存在"]
+    agents2 --> soul["SOUL.md<br/>网络运维专家定义"]
+
+    mcp --> networkmcp["deerflow-network-mcp/"]
+    networkmcp --> srcmcp["src/"]
+    srcmcp --> init3["__init__.py"]
+    srcmcp --> server["server.py<br/>MCP Server入口"]
+    srcmcp --> influxclient["influx_client.py<br/>InfluxDB查询封装"]
+    srcmcp --> baselinecalc["baseline_calculator.py<br/>滚动基线计算"]
+    srcmcp --> anomalydetect["anomaly_detector.py<br/>异常检测算法"]
+    networkmcp --> pyproject1["pyproject.toml"]
+    networkmcp --> readme1["README.md"]
+
+    collectors --> netcollector["network-collector/"]
+    netcollector --> srccollector["src/"]
+    srccollector --> init4["__init__.py"]
+    srccollector --> main["main.py<br/>采集服务主入口"]
+    srccollector --> snmp["snmp_poller.py<br/>SNMP轮询器"]
+    srccollector --> ssh["ssh_collector.py<br/>SSH配置采集"]
+    srccollector --> influxwrite["influx_writer.py<br/>数据写入InfluxDB"]
+    srccollector --> baselineagg["baseline_aggregator.py<br/>基线聚合计算"]
+    netcollector --> configdir["config/"]
+    configdir --> devicesyaml["devices.yaml<br/>设备清单800台"]
+    netcollector --> pyproject2["pyproject.toml"]
+    netcollector --> dockerfile["Dockerfile"]
+
+    docker --> composeyaml["docker-compose-network-ops.yaml<br/>运维系统专用compose"]
+
+    docs --> superpowers["superpowers/specs/"]
+    superpowers --> thisdoc["2026-04-06-network-ops-rag-design.md<br/>本文档"]
 ```
 
 ---
@@ -568,70 +545,74 @@ devices:
 
 ### 4.1 配置基线闭环
 
-```
-┌─────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 运维人员 │────▶│ 配置基线录入    │────▶│ 向量库存储      │
-│ (专家)  │     │ (Web UI/脚本)   │     │ (Chroma)        │
-└─────────┘     └─────────────────┘     └─────────────────┘
-                                               │
-                                               ▼
-┌─────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 运维人员 │◀────│ 整改执行        │◀────│ 差异报告        │
-│ (执行)  │     │                 │     │ (dedi Agent)    │
-└─────────┘     └─────────────────┘     └─────────────────┘
-                                               ▲
-                                               │
-┌─────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 现网设备 │────▶│ 配置采集        │────▶│ 基线对比检查    │
-│         │     │ (SSH/SNMP)      │     │ (RAG检索)       │
-└─────────┘     └─────────────────┘     └─────────────────┘
+```mermaid
+flowchart LR
+    subgraph 基线定义["1. 基线定义"]
+        A[运维人员<br/>专家] --> B[配置基线录入<br/>Web UI/脚本]
+        B --> C[向量库存储<br/>Chroma]
+    end
+
+    subgraph 配置检查["2. 配置检查"]
+        D[现网设备] --> E[配置采集<br/>SSH/SNMP]
+        E --> F[基线对比检查<br/>RAG检索]
+        F --> G[差异报告<br/>dedi Agent]
+    end
+
+    subgraph 整改闭环["3. 整改闭环"]
+        G --> H[运维人员<br/>执行]
+        H --> I[整改执行]
+        I -.->|优化完善| B
+    end
+
+    C -.-> F
 ```
 
 ### 4.2 运行状态闭环
 
-```
-┌─────────────────┐
-│ 800台设备       │
-│ (每分钟)        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ SNMP/SSH采集    │────▶│ InfluxDB写入    │────▶│ 滚动基线计算    │
-│ (Collector)     │     │ (原始数据)      │     │ (每小时)        │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                       │
-                                                       ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 运维人员        │◀────│ 异常报告/建议   │◀────│ 实时对比分析    │
-│                 │     │ (dedi Agent)    │     │ (MCP Server)    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                       ▲
-                                                       │
-                                                ┌───────────────┐
-                                                │ 当前实时数据  │
-                                                └───────────────┘
+```mermaid
+flowchart TB
+    A[800台设备
+    每分钟采集] --> B[SNMP/SSH采集
+    Collector]
+
+    B --> C[InfluxDB写入
+    原始数据]
+    C --> D[滚动基线计算
+    每小时执行]
+
+    D --> E[实时对比分析
+    MCP Server]
+    E --> F[异常报告/建议
+    dedi Agent]
+    F --> G[运维人员]
+
+    H[当前实时数据] -.-> E
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style G fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
 ### 4.3 故障知识闭环
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 历史故障案例    │────▶│ 向量化处理      │────▶│ 故障知识库      │
-│ SOP/应急预案    │     │ (bge-m3)        │     │ (Chroma)        │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                       │
-                                                       ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ 运维人员        │◀────│ 解决方案/SOP    │◀────│ 语义检索        │
-│                 │     │ 推荐            │     │ (dedi Agent)    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                       ▲
-                                                       │
-                                                ┌───────────────┐
-                                                │ 新问题描述    │
-                                                │ (自然语言)    │
-                                                └───────────────┘
+```mermaid
+flowchart LR
+    subgraph 知识入库["1. 知识入库"]
+        A[历史故障案例
+    SOP/应急预案] --> B[向量化处理
+    bge-m3]
+        B --> C[故障知识库
+    Chroma]
+    end
+
+    subgraph 故障排查["2. 故障排查"]
+        D[新问题描述
+    自然语言] --> E[语义检索
+    dedi Agent]
+        E --> F[解决方案/SOP推荐]
+        F --> G[运维人员]
+    end
+
+    C -.-> E
 ```
 
 ---
