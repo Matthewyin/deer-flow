@@ -611,21 +611,97 @@ devices:
 ---
 
 
-### 3.5 带宽策略管理模块 (示例：结构化数据+RAG混合)
 
+### 3.5 带宽策略管理模块 (SQLite + Chroma 混合方案)
 #### 3.5.1 模块定位
 
-带宽策略模块作为**最小可行产品(MVP)**，验证 DeerFlow 工具+RAG 的集成能力。
+带宽策略模块作为**最小可行产品(MVP)**，验证 DeerFlow 工具+多存储集成的能力。
 
-**设计演进**:
-- **V1 (当前)**: 硬编码 → 验证 Tool 接口
-- **V2 (计划中)**: SQLite 存储 → 支持动态修改
-- **V3 (可选)**: SQLite + Chroma 混合 → 支持自然语言查询
+**核心设计决策**: 采用 **SQLite + Chroma 混合架构**
+- **SQLite**: 权威数据源 (Source of Truth)，精确数值查询
+- **Chroma**: 语义增强层，支持自然语言理解
 
-#### 3.5.2 数据模型
+**解决的问题**:
+- 纯 SQL: 无法理解 "流量很高怎么办"
+- 纯向量: 数值比较不准确 (5Mbps 是否超阈值)
+- 混合: 精确计算 + 语义理解兼顾
+
+#### 3.5.2 混合架构设计
+
+```mermaid
+flowchart TB
+    subgraph Input["用户输入"]
+        Q1["精确查询: 当前10M带宽，流量5Mbps"]
+        Q2["模糊查询: 流量很高应该怎么办"]
+    end
+
+    subgraph ToolLayer["bandwidth_policy_query Tool"]
+        T1{查询类型判断}
+        T2[参数提取
+        current_bw / traffic]
+        T3[自然语言理解
+        query_text]
+    end
+
+    subgraph StorageLayer["数据存储层"]
+        subgraph SQLite["SQLite (权威数据)"]
+            S1[(bandwidth_tiers 表)]
+            S2[current_bw]
+            S3[scale_up_threshold]
+            S4[scale_up_target]
+        end
+
+        subgraph Chroma["Chroma (语义增强)"]
+            C1[(bandwidth_policy 集合)]
+            C2[策略描述文本]
+            C3[自然语言Embedding]
+        end
+    end
+
+    subgraph LogicLayer["查询处理"]
+        L1[SQL精确查询
+        SELECT * FROM tiers
+        WHERE current_bw = 10]
+        L2[数值比较
+        5 > 4.0 ?]
+        L3[向量语义检索
+        similarity_search
+        "流量很高怎么办"]
+    end
+
+    subgraph OutputLayer["结果输出"]
+        R1[action: scale_up
+        target_bw: 20 Mbps
+        reasoning: "..."]
+        R2[相关策略列表
+        relevance_score]
+    end
+
+    Q1 --> T1
+    Q2 --> T1
+    T1 -->|结构化参数| T2
+    T1 -->|自然语言| T3
+
+    T2 --> L1
+    L1 --> S1
+    S1 --> L2
+    L2 --> R1
+
+    T3 --> L3
+    L3 --> C1
+    C1 --> R2
+    R2 -->|提取档位| L1
+
+    style SQLite fill:#e1f5e1,stroke:#333,stroke-width:2px
+    style Chroma fill:#fff2e1,stroke:#333,stroke-width:2px
+```
+
+#### 3.5.3 数据模型
+
+**SQLite Schema (结构化数据)**:
 
 ```sql
--- SQLite Schema
+-- 主表: 带宽档位策略
 CREATE TABLE bandwidth_tiers (
     id INTEGER PRIMARY KEY,
     current_bw_mbps INTEGER NOT NULL,        -- 当前带宽 (Mbps)
@@ -650,472 +726,251 @@ INSERT INTO bandwidth_tiers VALUES
 (8, 40, 16.0, 50, 10.5, 30, '大带宽档位');
 ```
 
-#### 3.5.3 查询逻辑
+**Chroma 集合 (语义增强)**:
 
 ```python
-# 精确查询 (SQLite)
-def get_recommendation_sqlite(current_bw_mbps: int, traffic_mbps: float) -> dict:
-    """SQL直接查询，O(1)复杂度"""
-    
-    tier = db.execute(
-        "SELECT * FROM bandwidth_tiers WHERE current_bw_mbps = ?",
-        (current_bw_mbps,)
-    ).fetchone()
-    
-    if not tier:
-        return {"action": "unknown", "reason": "带宽档位不存在"}
-    
-    # 数值比较
-    if traffic_mbps > tier.scale_up_threshold_mbps:
-        return {
-            "action": "scale_up",
-            "target_bw": tier.scale_up_target_mbps,
-            "reasoning": f"流量{traffic_mbps} > 阈值{tier.scale_up_threshold_mbps}"
+# 每个档位生成自然语言描述文档
+documents = [
+    {
+        "content": "10 Mbps带宽档位。当P95流量超过4.0 Mbps（40%利用率）时，
+                   需要扩容到20 Mbps。当流量低于2.8 Mbps时，可以缩容到8 Mbps。",
+        "metadata": {
+            "current_bw": "10 Mbps",
+            "tier_id": 5,
+            "keywords": ["扩容", "缩容", "10M", "20M"]
         }
-    elif tier.scale_down_threshold_mbps and traffic_mbps < tier.scale_down_threshold_mbps:
-        return {
-            "action": "scale_down", 
-            "target_bw": tier.scale_down_target_mbps,
-            "reasoning": f"流量{traffic_mbps} < 阈值{tier.scale_down_threshold_mbps}"
-        }
-    else:
-        return {"action": "maintain", "reasoning": "流量在合理范围内"}
-
-# 语义查询 (Chroma) - V3可选
-def query_natural_language(query: str) -> list:
-    """自然语言查询，用于模糊描述"""
-    return chroma.similarity_search(query, k=2)
-    # 例: "流量很高怎么办" → 匹配到 "scale_up" 相关文档
+    },
+    # ... 其他档位
+]
 ```
 
-#### 3.5.4 与整体架构的关系
+#### 3.5.4 DeerFlow 调用流程详解
+
+当用户在 Web UI 中输入 **"我当前10M带宽，流量5Mbps，应该怎么办？"** 时，完整调用流程如下：
 
 ```mermaid
-flowchart LR
-    subgraph Agent["dedi Agent"]
-        A[用户查询
-        "10M带宽流量5M"]
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant W as Web UI
+    participant L as LangGraph Server
+    participant A as dedi Agent
+    participant T as bandwidth_policy_query
+    participant S as SQLite
+    participant C as Chroma
+    participant O as Ollama
+
+    U->>W: 输入: "10M带宽流量5M怎么办"
+    activate W
+    W->>L: POST /api/langgraph/threads/{id}/runs
+    activate L
+
+    Note over L: 创建 lead_agent
+    Note over L: 注入 dedi/SOUL.md
+
+    L->>A: 调用 dedi Agent
+    activate A
+
+    Note over A: LLM 推理过程:<br/>1. 识别带宽查询意图<br/>2. 提取参数: bw=10, traffic=5<br/>3. 生成 Tool Call
+
+    A->>T: 调用 bandwidth_policy_query<br/>(current_bw="10 Mbps", traffic=5.0)
+    activate T
+
+    alt 结构化参数查询
+        T->>S: SQL: SELECT * FROM tiers WHERE current_bw_mbps = 10
+        activate S
+        S-->>T: 返回: {scale_up_threshold: 4.0, target: 20}
+        deactivate S
+
+        T->>T: 数值比较: 5 > 4.0
+        Note right of T: 触发扩容条件
+
+    else 自然语言查询 (如"流量很高怎么办")
+        T->>O: Embedding: "流量很高怎么办"
+        activate O
+        O-->>T: 返回 1024维向量
+        deactivate O
+
+        T->>C: 向量检索: similarity_search
+        activate C
+        C-->>T: 返回: [{tier_id: 5, score: 0.92}, ...]
+        deactivate C
+
+        T->>S: SQL查询匹配到的档位
+        activate S
+        S-->>T: 返回详细阈值
+        deactivate S
     end
 
-    subgraph Tools["Tools层"]
-        T1[bandwidth_policy_query
-        结构化查询]
-        T2[network_config_check
-        配置检查]
-        T3[incident_retrieve
-        故障检索]
-    end
+    T-->>A: 返回结果:<br/>{action: "scale_up",<br/> target_bw: "20 Mbps",<br/> reasoning: "..."}
+    deactivate T
 
-    subgraph Storage["存储层"]
-        S1[(SQLite
-        带宽策略表)]
-        S2[(Chroma
-        故障知识库)]
-    end
+    Note over A: LLM 生成自然语言回复
 
-    A --> T1
-    T1 -->|SQL| S1
-    T2 -->|向量检索| S2
-    T3 -->|向量检索| S2
+    A-->>L: 返回: "建议扩容到20M..."
+    deactivate A
+
+    L->>L: 保存 thread state
+    L-->>W: 返回 SSE 流
+    deactivate L
+
+    W-->>U: 显示: "当前流量5Mbps已超过10M带宽的扩容阈值4Mbps，建议扩容到20Mbps..."
+    deactivate W
 ```
 
-#### 3.5.5 实现路径
+**调用步骤详解**:
 
-| 阶段 | 存储方案 | 查询方式 | 开发周期 | 适用场景 |
-|------|---------|---------|---------|---------|
-| **MVP** | Python Dict | 内存查找 | 1天 | 验证接口 |
-| **V1.1** | SQLite | SQL查询 | 2天 | 生产使用 |
-| **V1.2** | SQLite+Chroma | SQL+语义 | 3天 | 支持自然语言 |
+| 步骤 | 组件 | 操作 | 耗时估算 |
+|-----|------|------|---------|
+| 1-2 | Web UI → LangGraph | HTTP POST 请求 | 10ms |
+| 3 | LangGraph | 创建 Agent，加载 SOUL.md | 50ms |
+| 4 | dedi Agent | LLM 推理，生成 Tool Call | 500ms |
+| 5 | Tool | 接收参数 (bw, traffic) | <1ms |
+| 6 | SQLite | SQL 查询阈值 | 5ms |
+| 7 | Tool | 数值比较 (5 > 4.0) | <1ms |
+| 8-10 | Chroma (可选) | Embedding + 向量检索 | 200ms |
+| 11-13 | Tool → Agent | 返回结构化结果 | <1ms |
+| 14 | Agent | 生成自然语言回复 | 500ms |
+| 15-17 | LangGraph → Web UI | 保存状态，返回响应 | 20ms |
 
-**当前状态**: MVP 已完成 (Python Dict + Chroma 混合)
-**下一步**: 迁移到 SQLite 存储
+**总耗时**: ~600-800ms (不含网络延迟)
 
-## 4. 数据流设计
-
-### 4.1 配置基线闭环
-
-```mermaid
-flowchart LR
-    subgraph 基线定义["1. 基线定义"]
-        A[运维人员<br/>专家] --> B[配置基线录入<br/>Web UI/脚本]
-        B --> C[向量库存储<br/>Chroma]
-    end
-
-    subgraph 配置检查["2. 配置检查"]
-        D[现网设备] --> E[配置采集<br/>SSH/SNMP]
-        E --> F[基线对比检查<br/>RAG检索]
-        F --> G[差异报告<br/>dedi Agent]
-    end
-
-    subgraph 整改闭环["3. 整改闭环"]
-        G --> H[运维人员<br/>执行]
-        H --> I[整改执行]
-        I -.->|优化完善| B
-    end
-
-    C -.-> F
-```
-
-### 4.2 运行状态闭环
-
-```mermaid
-flowchart TB
-    A[800台设备
-    每分钟采集] --> B[SNMP/SSH采集
-    Collector]
-
-    B --> C[InfluxDB写入
-    原始数据]
-    C --> D[滚动基线计算
-    每小时执行]
-
-    D --> E[实时对比分析
-    MCP Server]
-    E --> F[异常报告/建议
-    dedi Agent]
-    F --> G[运维人员]
-
-    H[当前实时数据] -.-> E
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style G fill:#bbf,stroke:#333,stroke-width:2px
-```
-
-### 4.3 故障知识闭环
-
-```mermaid
-flowchart LR
-    subgraph 知识入库["1. 知识入库"]
-        A[历史故障案例
-    SOP/应急预案] --> B[向量化处理
-    bge-m3]
-        B --> C[故障知识库
-    Chroma]
-    end
-
-    subgraph 故障排查["2. 故障排查"]
-        D[新问题描述
-    自然语言] --> E[语义检索
-    dedi Agent]
-        E --> F[解决方案/SOP推荐]
-        F --> G[运维人员]
-    end
-
-    C -.-> E
-```
-
----
-
-## 5. 接口定义
-
-### 5.1 Tool 接口
+#### 3.5.5 代码实现
 
 ```python
-# backend/packages/harness/deerflow/tools/network_config.py
+# backend/packages/harness/deerflow/tools/bandwidth_tool.py
 
-from pydantic import BaseModel, Field
-from typing import Literal
+import sqlite3
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
 
-class ConfigCheckInput(BaseModel):
-    device_id: str = Field(..., description="设备ID，如 SW-CORE-01")
-    config_text: str | None = Field(None, description="配置文本，不传则自动采集")
-    baseline_version: str = Field("latest", description="基线版本")
+class BandwidthPolicyTool:
+    """带宽策略查询工具 (SQLite + Chroma 混合)"""
 
-class ConfigCheckOutput(BaseModel):
-    device_id: str
-    baseline_version: str
-    overall_compliance: float  # 0-1
-    findings: list[ConfigFinding]
-    missing_items: list[str]
-    extra_items: list[str]
-
-class ConfigFinding(BaseModel):
-    severity: Literal["high", "medium", "low"]
-    category: str
-    expected: str
-    actual: str
-    recommendation: str
-
-async def network_config_check(input: ConfigCheckInput) -> ConfigCheckOutput:
-    """检查设备配置与基线的差异"""
-    pass
-```
-
-### 5.2 MCP Server 接口
-
-```python
-# mcp-servers/deerflow-network-mcp/src/server.py
-
-from pydantic import BaseModel
-
-class QueryMetricsInput(BaseModel):
-    device_id: str
-    metric: str
-    time_range: str
-    aggregation: str = "mean"
-
-class QueryMetricsOutput(BaseModel):
-    device_id: str
-    metric: str
-    data_points: list[DataPoint]
-    statistics: MetricStats
-
-class DataPoint(BaseModel):
-    timestamp: str
-    value: float
-
-class MetricStats(BaseModel):
-    mean: float
-    max: float
-    min: float
-    p95: float
-
-@mcp.tool()
-async def query_device_metrics(input: QueryMetricsInput) -> QueryMetricsOutput:
-    pass
-```
-
----
-
-## 6. 本地开发环境
-
-### 6.1 服务启动顺序
-
-```bash
-# 1. 启动 Ollama (宿主机)
-ollama serve
-ollama pull bge-m3
-ollama pull qwen3.5:9b
-
-# 2. 启动 InfluxDB (Docker)
-docker run -d \
-  --name influxdb-network-ops \
-  -p 8086:8086 \
-  -v influxdb-data:/var/lib/influxdb2 \
-  influxdb:2
-
-# 3. 启动 DeerFlow (项目根目录)
-make dev
-
-# 4. 启动 MCP Server (开发模式)
-cd mcp-servers/deerflow-network-mcp
-python -m src.server
-
-# 5. 启动数据采集器 (模拟模式)
-cd collectors/network-collector
-python -m src.main --mode=simulate
-```
-
-### 6.2 模拟数据生成
-
-由于本地无真实设备，开发阶段使用模拟数据：
-
-```python
-# collectors/network-collector/src/simulator.py
-
-class DeviceSimulator:
-    """设备数据模拟器"""
-    
     def __init__(self):
-        self.devices = self._load_device_templates()
-    
-    def generate_metrics(self, device_id: str) -> dict:
-        """生成模拟指标数据"""
-        base = self._get_baseline(device_id)
-        
-        # 添加随机波动
-        noise = random.gauss(0, base["std"])
-        
-        # 偶尔注入异常 (5%概率)
-        if random.random() < 0.05:
-            anomaly = base["mean"] * 0.5  # 50%偏离
-            return {"value": base["mean"] + noise + anomaly, "is_anomaly": True}
-        
-        return {"value": base["mean"] + noise, "is_anomaly": False}
-    
-    def generate_config(self, device_type: str, vendor: str) -> str:
-        """从模板生成配置"""
-        template = self._load_template(device_type, vendor)
-        return template.render(vlan_id=random.randint(10, 100))
+        self.db_path = ".deer-flow/db/network_ops.db"
+        self.chroma = Chroma(
+            collection_name="bandwidth_policy",
+            embedding_function=OllamaEmbeddings(model="bge-m3"),
+            persist_directory=".deer-flow/vectors/bandwidth_policy"
+        )
+
+    async def query(
+        self,
+        current_bw: Optional[str] = None,
+        current_traffic: Optional[float] = None,
+        query_text: Optional[str] = None
+    ) -> dict:
+        """
+        混合查询：结构化参数 + 自然语言
+        """
+        # 场景1: 有结构化参数 → SQL精确查询
+        if current_bw and current_traffic is not None:
+            return await self._sql_query(current_bw, current_traffic)
+
+        # 场景2: 只有自然语言 → 语义检索 + SQL二次查询
+        if query_text:
+            return await self._hybrid_query(query_text)
+
+        return {"error": "需要提供带宽参数或查询文本"}
+
+    async def _sql_query(self, current_bw: str, traffic: float) -> dict:
+        """SQLite 精确查询"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # 提取数值 ("10 Mbps" → 10)
+        bw_mbps = int(current_bw.split()[0])
+
+        cursor.execute(
+            """SELECT * FROM bandwidth_tiers
+               WHERE current_bw_mbps = ?""",
+            (bw_mbps,)
+        )
+        tier = cursor.fetchone()
+        conn.close()
+
+        if not tier:
+            return {"action": "unknown", "reason": "带宽档位不存在"}
+
+        # 数值比较
+        _, _, scale_up_threshold, scale_up_target, \
+        scale_down_threshold, scale_down_target, desc = tier
+
+        if traffic > scale_up_threshold:
+            return {
+                "action": "scale_up",
+                "current_bw": current_bw,
+                "current_traffic_mbps": traffic,
+                "threshold_mbps": scale_up_threshold,
+                "target_bw": f"{scale_up_target} Mbps",
+                "reasoning": f"当前流量 {traffic} Mbps 超过扩容阈值 {scale_up_threshold} Mbps，"
+                            f"建议扩容到 {scale_up_target} Mbps"
+            }
+        elif scale_down_threshold and traffic < scale_down_threshold:
+            return {
+                "action": "scale_down",
+                "target_bw": f"{scale_down_target} Mbps",
+                "reasoning": f"当前流量 {traffic} Mbps 低于缩容阈值 {scale_down_threshold} Mbps"
+            }
+        else:
+            return {
+                "action": "maintain",
+                "reasoning": f"当前流量 {traffic} Mbps 在合理范围内，维持 {current_bw} 配置"
+            }
+
+    async def _hybrid_query(self, query_text: str) -> dict:
+        """混合查询：Chroma语义检索 → SQLite精确查询"""
+
+        # Step 1: Chroma 语义检索
+        results = self.chroma.similarity_search_with_score(query_text, k=2)
+
+        if not results:
+            return {"action": "unknown", "reason": "未找到相关策略"}
+
+        # Step 2: 提取最相关的档位信息
+        best_match = results[0][0]  # Document
+        relevance_score = 1 - results[0][1]  # 转换距离为相似度
+
+        current_bw = best_match.metadata["current_bw"]
+
+        # Step 3: 提取查询中的流量信息 (简单正则)
+        import re
+        traffic_match = re.search(r'(\d+\.?\d*)\s*[Mm]', query_text)
+        traffic = float(traffic_match.group(1)) if traffic_match else None
+
+        if traffic:
+            # 有流量信息 → SQL精确查询
+            sql_result = await self._sql_query(current_bw, traffic)
+            sql_result["relevance_score"] = round(relevance_score, 4)
+            sql_result["semantic_match"] = best_match.page_content[:100]
+            return sql_result
+        else:
+            # 无流量信息 → 返回语义检索结果
+            return {
+                "action": "info",
+                "matched_policy": current_bw,
+                "relevance_score": round(relevance_score, 4),
+                "description": best_match.page_content,
+                "suggestion": "请提供当前流量数据以获取具体建议"
+            }
+
+
+# Tool 实例
+bandwidth_policy_query_tool = BandwidthPolicyTool()
 ```
 
----
+#### 3.5.6 实现路径 (更新)
 
-## 7. 部署配置
+| 阶段 | 存储方案 | 状态 | 说明 |
+|------|---------|------|------|
+| **MVP (当前)** | Python Dict | ✅ 已完成 | 硬编码验证接口 |
+| **V1.0 (推荐)** | SQLite + Chroma | 🔄 计划中 | 混合架构，精确+语义 |
+| **V1.1** | SQLite + Chroma + 缓存 | 📋 待排期 | 高频查询缓存 |
 
-### 7.1 Docker Compose
+**下一步**: 实现 V1.0 混合架构
+1. 创建 SQLite 数据库和表
+2. 同步数据到 Chroma (自动生成 Embedding)
+3. 更新 Tool 实现混合查询逻辑
+4. 添加测试用例验证两种查询路径
 
-```yaml
-# docker/docker-compose-network-ops.yaml
-
-version: '3.8'
-
-services:
-  # InfluxDB 时序数据库
-  influxdb:
-    image: influxdb:2
-    container_name: network-ops-influxdb
-    ports:
-      - "8086:8086"
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
-    environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
-      - DOCKER_INFLUXDB_INIT_ORG=network-ops
-      - DOCKER_INFLUXDB_INIT_BUCKET=device_metrics
-
-  # MCP Server
-  network-mcp:
-    build: ./mcp-servers/deerflow-network-mcp
-    container_name: network-mcp-server
-    environment:
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=admin-token
-      - INFLUXDB_ORG=network-ops
-    depends_on:
-      - influxdb
-
-  # 数据采集器
-  network-collector:
-    build: ./collectors/network-collector
-    container_name: network-collector
-    environment:
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=admin-token
-      - MODE=simulate  # 开发模式使用模拟数据
-    volumes:
-      - ./collectors/network-collector/config:/app/config
-    depends_on:
-      - influxdb
-
-volumes:
-  influxdb-data:
-```
-
-### 7.2 DeerFlow 配置扩展
-
-```yaml
-# config.yaml 扩展部分
-
-# 添加 embedding 模型配置
-models:
-  # ... 现有LLM配置 ...
-  
-  - name: ollama-bge-m3
-    display_name: BGE-M3 Embedding
-    use: langchain_ollama:OllamaEmbeddings
-    model: bge-m3
-    base_url: http://host.docker.internal:11434
-
-# 添加网络运维专用Tools
-tools:
-  # ... 现有工具 ...
-  
-  - name: network_config_check
-    group: network
-    use: deerflow.tools.network_config:network_config_check_tool
-  
-  - name: network_status_analyze
-    group: network
-    use: deerflow.tools.network_status:network_status_analyze_tool
-  
-  - name: incident_retrieve
-    group: network
-    use: deerflow.tools.incident_query:incident_retrieve_tool
-
-tool_groups:
-  - name: web
-  - name: file:read
-  - name: file:write
-  - name: bash
-  - name: network  # 新增网络运维组
-```
-
-```json
-// extensions_config.json 扩展部分
-{
-  "mcpServers": {
-    "network-ops": {
-      "enabled": true,
-      "type": "stdio",
-      "command": "python",
-      "args": ["-m", "mcp_servers.deerflow_network_mcp"],
-      "description": "网络运维数据查询服务"
-    }
-  },
-  "skills": {
-    "network-ops": {
-      "enabled": true
-    }
-  }
-}
-```
-
----
-
-## 8. 里程碑规划
-
-### Phase 1: 基础架构 (Week 1-2)
-- [ ] 项目结构搭建
-- [ ] InfluxDB 部署和 Schema 设计
-- [ ] MCP Server 框架和基础接口
-- [ ] 数据采集器框架（模拟模式）
-
-### Phase 2: RAG 核心 (Week 3-4)
-- [ ] 配置基线 RAG 模块
-- [ ] 故障知识库 RAG 模块
-- [ ] bge-m3 Embedding 集成
-- [ ] dedi Agent 配置优化
-
-### Phase 3: Tools 实现 (Week 5-6)
-- [ ] network_config_check Tool
-- [ ] network_status_analyze Tool
-- [ ] incident_retrieve Tool
-- [ ] 报告生成 Tool
-
-### Phase 4: 集成测试 (Week 7-8)
-- [ ] 端到端流程测试
-- [ ] 性能测试（800设备模拟）
-- [ ] 用户验收测试
-- [ ] 文档完善
-
----
-
-## 9. 风险评估
-
-| 风险 | 影响 | 缓解措施 |
-|------|------|----------|
-| Ollama Embedding 性能瓶颈 | 高 | 支持批量embedding，考虑本地缓存 |
-| InfluxDB 数据量过大 | 中 | 严格保留策略，分层存储 |
-| 800设备并发采集超时 | 中 | 异步采集，超时重试，降级机制 |
-| bge-m3 中文效果不佳 | 低 | 预留切换到 m3e/bce 的接口 |
-
----
-
-## 10. 附录
-
-### 10.1 术语表
-
-| 术语 | 说明 |
-|------|------|
-| RAG | Retrieval-Augmented Generation，检索增强生成 |
-| MCP | Model Context Protocol，模型上下文协议 |
-| Embedding | 文本向量化表示 |
-| 滚动基线 | 基于历史数据的动态阈值 |
-| Chroma | 开源向量数据库 |
-| InfluxDB | 开源时序数据库 |
-
-### 10.2 参考文档
-
-- [DeerFlow Documentation](https://deer-flow.dev/docs)
-- [LangChain RAG Tutorial](https://python.langchain.com/docs/tutorials/rag/)
-- [InfluxDB Python Client](https://github.com/influxdata/influxdb-client-python)
-- [MCP Protocol Spec](https://modelcontextprotocol.io/)
-
----
-
-**文档状态**: 设计评审中  
-**下次评审日期**: 2026-04-13  
-**负责人**: Alkaid
