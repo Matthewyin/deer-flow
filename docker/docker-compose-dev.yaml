@@ -129,6 +129,8 @@ services:
       - ../config.yaml:/app/config.yaml
       - ../extensions_config.json:/app/extensions_config.json
       - ../skills:/app/skills
+      - ../mcp-servers:/app/mcp-servers:ro
+      - ../docs:/app/docs:ro
       - ../logs:/app/logs
       # Mount uv cache for faster dependency installation
       - ~/.cache/uv:/root/.cache/uv
@@ -186,6 +188,8 @@ services:
       - ../config.yaml:/app/config.yaml
       - ../extensions_config.json:/app/extensions_config.json
       - ../skills:/app/skills
+      - ../mcp-servers:/app/mcp-servers:ro
+      - ../docs:/app/docs:ro
       - ../logs:/app/logs
       # Mount uv cache for faster dependency installation
       - ~/.cache/uv:/root/.cache/uv
