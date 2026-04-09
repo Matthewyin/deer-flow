@@ -38,6 +38,7 @@ coverage/
 .deer-flow/
 .claude/
 skills/custom/*
+!skills/custom/bandwidth-management/
 logs/
 log/
 

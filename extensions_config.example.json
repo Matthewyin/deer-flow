@@ -1,5 +1,23 @@
 {
   "mcpServers": {
+    "network-ops": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "/app/backend/.venv/bin/python",
+      "args": ["/app/mcp-servers/network-ops/server.py"],
+      "env": {
+        "MYSQL_HOST": "host.docker.internal",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "$MYSQL_USER",
+        "MYSQL_PASSWORD": "$MYSQL_PASSWORD",
+        "MYSQL_DATABASE": "$MYSQL_DATABASE",
+        "BANDWIDTH_MD_PATH": "docs/bandwidth.md",
+        "SQLITE_DB_PATH": ".deer-flow/db/network_ops.db",
+        "CHROMA_PERSIST_DIR": ".deer-flow/vectors/bandwidth_policy",
+        "OLLAMA_BASE_URL": "http://host.docker.internal:11434"
+      },
+      "description": "网络运维工具集：线路查询、带宽评估、统计查询、邮件生成"
+    },
     "filesystem": {
       "enabled": false,
       "type": "stdio",
