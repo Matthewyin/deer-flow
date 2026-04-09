@@ -22,6 +22,8 @@ class SQLiteConfig:
 class ChromaConfig:
     persist_dir: str = ".deer-flow/vectors/bandwidth_policy"
     ollama_base_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "bge-m3:567m"
+    collection_name: str = "bandwidth_policy"
     md_path: str = "docs/bandwidth.md"
 
 
@@ -52,6 +54,8 @@ class ServerConfig:
                 ollama_base_url=os.getenv(
                     "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
                 ),
+                ollama_model=os.getenv("OLLAMA_EMBED_MODEL", "bge-m3:567m"),
+                collection_name=os.getenv("CHROMA_COLLECTION", "bandwidth_policy"),
                 md_path=os.getenv("BANDWIDTH_MD_PATH", "docs/bandwidth.md"),
             )
 

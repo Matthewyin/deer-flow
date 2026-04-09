@@ -59,10 +59,17 @@ def _chunk_md(content: str) -> List[Dict[str, str]]:
 
 class BandwidthRAG:
     def __init__(
-        self, persist_dir: str, ollama_base_url: str, md_path: str = "docs/bandwidth.md"
+        self,
+        persist_dir: str,
+        ollama_base_url: str,
+        ollama_model: str = "bge-m3:567m",
+        collection_name: str = "bandwidth_policy",
+        md_path: str = "docs/bandwidth.md",
     ):
         self.persist_dir = _resolve_path(persist_dir)
         self.ollama_base_url = ollama_base_url
+        self.ollama_model = ollama_model
+        self.collection_name = collection_name
         self.md_path = _resolve_path(md_path)
         self._vectorstore = None
         self._is_initialized = False
@@ -76,7 +83,7 @@ class BandwidthRAG:
             return self
 
         embeddings = OllamaEmbeddings(
-            model="bge-m3:567m", base_url=self.ollama_base_url
+            model=self.ollama_model, base_url=self.ollama_base_url
         )
 
         if os.path.exists(self.persist_dir) and not force_rebuild:
@@ -84,7 +91,7 @@ class BandwidthRAG:
             self._vectorstore = Chroma(
                 persist_directory=self.persist_dir,
                 embedding_function=embeddings,
-                collection_name="bandwidth_policy",
+                collection_name=self.collection_name,
             )
             self._is_initialized = True
             return self
@@ -110,7 +117,7 @@ class BandwidthRAG:
             documents=documents,
             embedding=embeddings,
             persist_directory=self.persist_dir,
-            collection_name="bandwidth_policy",
+            collection_name=self.collection_name,
         )
 
         self._is_initialized = True

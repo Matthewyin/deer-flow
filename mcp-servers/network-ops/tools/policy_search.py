@@ -18,6 +18,8 @@ def _get_rag():
         _rag = BandwidthRAG(
             persist_dir=config.chroma.persist_dir,
             ollama_base_url=config.chroma.ollama_base_url,
+            ollama_model=config.chroma.ollama_model,
+            collection_name=config.chroma.collection_name,
             md_path=config.chroma.md_path,
         )
         _rag.initialize()
