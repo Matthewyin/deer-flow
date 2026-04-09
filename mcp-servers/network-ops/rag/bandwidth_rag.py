@@ -18,28 +18,38 @@ def _resolve_path(path_str: str) -> str:
 
 
 def _chunk_md(content: str) -> List[Dict[str, str]]:
+    """Split markdown into semantic chunks for RAG indexing.
+
+    Strategy text (before ``----------``): split by numbered headings.
+    Email templates (after ``----------``): each template is one chunk.
     """
-    Split markdown by section headers (digits or template names).
-    """
-    # Regex to split by headers:
-    # 1. Start of line with digits (e.g., "1. 概述")
-    # 2. Start of line with "模板" (e.g., "模板一：...")
-    pattern = r"(?=^\d+\.\s|(?=^模板[一二三四]))"
-    chunks = re.split(pattern, content, flags=re.MULTILINE)
+    parts = re.split(r"^-{5,}\s*$", content, maxsplit=1, flags=re.MULTILINE)
+    strategy_text = parts[0]
+    template_text = parts[1] if len(parts) > 1 else ""
 
     processed_chunks = []
-    for chunk in chunks:
+
+    # --- Strategy section: split by numbered headings ---
+    strategy_chunks = re.split(r"(?=^\d+\.\s)", strategy_text, flags=re.MULTILINE)
+    for chunk in strategy_chunks:
         chunk = chunk.strip()
         if len(chunk) < 20:
             continue
+        title = chunk.split("\n")[0].strip()
+        title = re.sub(r"^\d+\.\s*", "", title)
+        processed_chunks.append({"content": chunk, "section_title": title})
 
-        # Extract section title (first line)
-        lines = chunk.split("\n")
-        section_title = lines[0].strip()
-        # Clean title of numbering if possible
-        section_title = re.sub(r"^\d+\.\s*", "", section_title)
-
-        processed_chunks.append({"content": chunk, "section_title": section_title})
+    # --- Template section: each template is a single chunk ---
+    if template_text.strip():
+        template_chunks = re.split(
+            r"(?=^模板[一二三四][：:])", template_text.strip(), flags=re.MULTILINE
+        )
+        for chunk in template_chunks:
+            chunk = chunk.strip()
+            if len(chunk) < 20:
+                continue
+            title = chunk.split("\n")[0].strip()
+            processed_chunks.append({"content": chunk, "section_title": title})
 
     if not processed_chunks:
         return [{"content": content, "section_title": "Full Document"}]
