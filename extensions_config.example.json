@@ -3,7 +3,7 @@
     "network-ops": {
       "enabled": false,
       "type": "stdio",
-      "command": "python",
+      "command": "/app/backend/.venv/bin/python",
       "args": ["/app/mcp-servers/network-ops/server.py"],
       "env": {
         "MYSQL_HOST": "host.docker.internal",
