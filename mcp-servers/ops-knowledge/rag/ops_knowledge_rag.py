@@ -19,6 +19,58 @@ def _resolve_path(path_str: str) -> str:
     return str(_PROJECT_ROOT / p)
 
 
+# bge-m3:567m context ~8192 tokens; Chinese ~1.5 chars/token; safe upper bound ~6000 chars
+MAX_CHUNK_CHARS = 6000
+
+
+def _split_oversized(chunk: str, max_chars: int = MAX_CHUNK_CHARS) -> List[str]:
+    """Split a single chunk that exceeds max_chars by paragraphs or sentences."""
+    if len(chunk) <= max_chars:
+        return [chunk]
+
+    # Try splitting by double newlines first
+    parts = re.split(r"\n{2,}", chunk)
+    result: List[str] = []
+    buffer = ""
+    for part in parts:
+        if len(buffer) + len(part) + 2 <= max_chars:
+            buffer = (buffer + "\n\n" + part).strip() if buffer else part.strip()
+        else:
+            if buffer:
+                result.append(buffer)
+            # If a single part is still too large, split by sentences
+            if len(part) > max_chars:
+                sentences = re.split(r"(?<=[。！？\n.!?])\s*", part)
+                sub_buf = ""
+                for sent in sentences:
+                    if len(sub_buf) + len(sent) <= max_chars:
+                        sub_buf += sent
+                    else:
+                        if sub_buf:
+                            result.append(sub_buf.strip())
+                        sub_buf = sent
+                if sub_buf.strip():
+                    result.append(sub_buf.strip())
+            else:
+                buffer = part.strip()
+    if buffer.strip():
+        result.append(buffer.strip())
+    return result if result else [chunk[:max_chars]]
+
+
+def _enforce_max_chunks(
+    chunks: List[str], max_chars: int = MAX_CHUNK_CHARS
+) -> List[str]:
+    """Ensure no chunk exceeds max_chars by splitting oversized ones."""
+    result: List[str] = []
+    for chunk in chunks:
+        if len(chunk) <= max_chars:
+            result.append(chunk)
+        else:
+            result.extend(_split_oversized(chunk, max_chars))
+    return result
+
+
 def _chunk_by_headings(content: str, min_chunk_size: int = 100) -> List[str]:
     """Split content by markdown headings. Used for SOP docs."""
     parts = re.split(r"(?=^#{1,3}\s)", content, flags=re.MULTILINE)
@@ -36,7 +88,7 @@ def _chunk_by_headings(content: str, min_chunk_size: int = 100) -> List[str]:
             buffer = part
     if buffer.strip():
         chunks.append(buffer)
-    return chunks
+    return _enforce_max_chunks(chunks)
 
 
 def _chunk_by_paragraphs(content: str, min_chunk_size: int = 100) -> List[str]:
@@ -59,13 +111,15 @@ def _chunk_by_paragraphs(content: str, min_chunk_size: int = 100) -> List[str]:
             buffer = para
     if buffer.strip():
         chunks.append(buffer)
-    return chunks
+    return _enforce_max_chunks(chunks)
 
 
 def _chunk_whole(content: str) -> List[str]:
-    """Return entire content as single chunk. Used for emergency plans."""
+    """Return content as chunks, splitting if too long. Used for emergency plans."""
     stripped = content.strip()
-    return [stripped] if stripped else []
+    if not stripped:
+        return []
+    return _enforce_max_chunks([stripped])
 
 
 def chunk_by_doc_type(content: str, doc_type: str) -> List[str]:
