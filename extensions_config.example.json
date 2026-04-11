@@ -18,6 +18,18 @@
       },
       "description": "网络运维工具集：线路查询、带宽评估、统计查询、邮件生成"
     },
+    "ops-knowledge": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "/app/backend/.venv/bin/python",
+      "args": ["/app/mcp-servers/ops-knowledge/server.py"],
+      "env": {
+        "OPS_KNOWLEDGE_DB_PATH": ".deer-flow/db/ops_knowledge.db",
+        "CHROMA_PERSIST_DIR": ".deer-flow/vectors/ops_knowledge",
+        "OLLAMA_BASE_URL": "http://host.docker.internal:11434"
+      },
+      "description": "运维知识库工具集：文档入库、语义检索、知识浏览"
+    },
     "filesystem": {
       "enabled": false,
       "type": "stdio",
