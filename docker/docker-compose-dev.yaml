@@ -181,12 +181,10 @@ services:
         UV_IMAGE: ${UV_IMAGE:-ghcr.io/astral-sh/uv:0.7.20}
         UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.org/simple}
     container_name: deer-flow-langgraph
-    command: sh -c "cd backend && uv sync && allow_blocking='' && if [ \"\${LANGGRAPH_ALLOW_BLOCKING:-0}\" = '1' ]; then allow_blocking='--allow-blocking'; fi && uv run langgraph dev --no-browser \${allow_blocking} --host 0.0.0.0 --port 2024 --n-jobs-per-worker \${LANGGRAPH_JOBS_PER_WORKER:-10} > /app/logs/langgraph.log 2>&1"
+    command: sh -c "cd backend && uv sync && uv pip install --python /app/backend/.venv/bin/python paramiko apscheduler && allow_blocking='' && if [ \"\${LANGGRAPH_ALLOW_BLOCKING:-0}\" = '1' ]; then allow_blocking='--allow-blocking'; fi && uv run langgraph dev --no-browser \${allow_blocking} --host 0.0.0.0 --port 2024 --n-jobs-per-worker \${LANGGRAPH_JOBS_PER_WORKER:-10} > /app/logs/langgraph.log 2>&1"
     volumes:
       - ../backend/:/app/backend/
-      # Preserve the .venv built during Docker image build — mounting the full backend/
-      # directory above would otherwise shadow it with the (empty) host directory.
-      - langgraph-venv:/app/backend/.venv
+      - ../docker/volumes/langgraph-venv:/app/backend/.venv
       - ../config.yaml:/app/config.yaml
       - ../extensions_config.json:/app/extensions_config.json
       - ../skills:/app/skills
@@ -229,10 +227,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  # Persist .venv across container restarts so dependencies installed during
-  # image build are not shadowed by the host backend/ directory mount.
   gateway-venv:
-  langgraph-venv:
 
 networks:
   deer-flow-dev:

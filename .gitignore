@@ -74,3 +74,4 @@ logs/
 .env.*.local
 secrets/
 credentials/
+docker/volumes/
