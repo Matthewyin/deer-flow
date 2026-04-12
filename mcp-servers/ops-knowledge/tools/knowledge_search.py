@@ -20,6 +20,11 @@ def _get_rag() -> OpsKnowledgeRAG:
             ollama_base_url=cfg.chroma.ollama_base_url,
             ollama_model=cfg.chroma.ollama_model,
             collection_name=cfg.chroma.collection_name,
+            reranker_enabled=cfg.reranker.enabled,
+            reranker_model=cfg.reranker.model_name,
+            reranker_device=cfg.reranker.device,
+            reranker_max_length=cfg.reranker.max_length,
+            reranker_retrieval_multiplier=cfg.reranker.retrieval_multiplier,
         )
         _rag.initialize()
     return _rag

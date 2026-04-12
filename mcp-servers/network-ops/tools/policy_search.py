@@ -21,6 +21,11 @@ def _get_rag():
             ollama_model=config.chroma.ollama_model,
             collection_name=config.chroma.collection_name,
             md_path=config.chroma.md_path,
+            reranker_enabled=config.reranker.enabled,
+            reranker_model=config.reranker.model_name,
+            reranker_device=config.reranker.device,
+            reranker_max_length=config.reranker.max_length,
+            reranker_retrieval_multiplier=config.reranker.retrieval_multiplier,
         )
         _rag.initialize()
     return _rag

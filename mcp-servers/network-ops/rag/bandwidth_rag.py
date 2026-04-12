@@ -2,7 +2,7 @@ import re
 import os
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -65,6 +65,11 @@ class BandwidthRAG:
         ollama_model: str = "bge-m3:567m",
         collection_name: str = "bandwidth_policy",
         md_path: str = "docs/bandwidth.md",
+        reranker_enabled: bool = False,
+        reranker_model: str = "",
+        reranker_device: str = "cpu",
+        reranker_max_length: int = 512,
+        reranker_retrieval_multiplier: int = 3,
     ):
         self.persist_dir = _resolve_path(persist_dir)
         self.ollama_base_url = ollama_base_url
@@ -73,6 +78,13 @@ class BandwidthRAG:
         self.md_path = _resolve_path(md_path)
         self._vectorstore = None
         self._is_initialized = False
+
+        self._reranker_enabled = reranker_enabled
+        self._reranker_model = reranker_model
+        self._reranker_device = reranker_device
+        self._reranker_max_length = reranker_max_length
+        self._reranker_multiplier = reranker_retrieval_multiplier
+        self._reranker = None
 
     def initialize(self, force_rebuild: bool = False) -> "BandwidthRAG":
         from langchain_ollama import OllamaEmbeddings
@@ -124,11 +136,50 @@ class BandwidthRAG:
         logger.info("Vectorstore initialized successfully")
         return self
 
+    def _get_reranker(self):
+        if self._reranker is not None:
+            return self._reranker
+        import sys
+
+        common_path = str(Path(__file__).resolve().parent.parent.parent / "common")
+        if common_path not in sys.path:
+            sys.path.insert(0, common_path)
+        from common.reranker import Reranker
+
+        self._reranker = Reranker(
+            model_name=self._reranker_model,
+            device=self._reranker_device,
+            max_length=self._reranker_max_length,
+        )
+        return self._reranker
+
     def query(self, query_text: str, k: int = 3) -> List[Dict]:
         if not self._is_initialized:
             self.initialize()
 
-        results = self._vectorstore.similarity_search_with_score(query_text, k=k)
+        use_reranker = self._reranker_enabled and self._reranker_model
+        retrieve_k = k * self._reranker_multiplier if use_reranker else k
+
+        results = self._vectorstore.similarity_search_with_score(
+            query_text, k=retrieve_k
+        )
+
+        if use_reranker and len(results) > k:
+            reranker = self._get_reranker()
+            documents = [doc.page_content for doc, _ in results]
+            ranked = reranker.rerank(query_text, documents)
+            final = []
+            for orig_idx, score in ranked[:k]:
+                doc, _ = results[orig_idx]
+                final.append(
+                    {
+                        "section": doc.metadata.get("section", "Unknown"),
+                        "content": doc.page_content,
+                        "score": round(score, 4),
+                        "reranked": True,
+                    }
+                )
+            return final
 
         formatted_results = []
         for doc, score in results:

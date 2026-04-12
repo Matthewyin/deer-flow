@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -144,6 +145,11 @@ class OpsKnowledgeRAG:
         ollama_base_url: str,
         ollama_model: str = "bge-m3:567m",
         collection_name: str = "ops_knowledge",
+        reranker_enabled: bool = False,
+        reranker_model: str = "",
+        reranker_device: str = "cpu",
+        reranker_max_length: int = 512,
+        reranker_retrieval_multiplier: int = 3,
     ):
         self.persist_dir = _resolve_path(persist_dir)
         self.ollama_base_url = ollama_base_url
@@ -151,6 +157,13 @@ class OpsKnowledgeRAG:
         self.collection_name = collection_name
         self._vectorstore = None
         self._is_initialized = False
+
+        self._reranker_enabled = reranker_enabled
+        self._reranker_model = reranker_model
+        self._reranker_device = reranker_device
+        self._reranker_max_length = reranker_max_length
+        self._reranker_multiplier = reranker_retrieval_multiplier
+        self._reranker = None
 
     def initialize(self, force_rebuild: bool = False) -> "OpsKnowledgeRAG":
         """Initialize ChromaDB vectorstore (loads existing or creates empty)."""
@@ -191,6 +204,21 @@ class OpsKnowledgeRAG:
         logger.info("Vectorstore initialized successfully")
         return self
 
+    def _get_reranker(self):
+        if self._reranker is not None:
+            return self._reranker
+        common_path = str(Path(__file__).resolve().parent.parent.parent / "common")
+        if common_path not in sys.path:
+            sys.path.insert(0, common_path)
+        from common.reranker import Reranker
+
+        self._reranker = Reranker(
+            model_name=self._reranker_model,
+            device=self._reranker_device,
+            max_length=self._reranker_max_length,
+        )
+        return self._reranker
+
     def add_chunks(self, chunks: List[Dict]) -> int:
         """Add document chunks to vectorstore.
 
@@ -230,16 +258,37 @@ class OpsKnowledgeRAG:
         device_type: Optional[str] = None,
         top_k: int = 5,
     ) -> List[Dict]:
-        """Semantic search with optional metadata filters."""
+        """Semantic search with optional metadata filters and reranking."""
         if not self._is_initialized:
             self.initialize()
 
         where_filter = self._build_filter(doc_type, device_vendor, device_type)
-        kwargs = {"k": top_k}
+
+        use_reranker = self._reranker_enabled and self._reranker_model
+        retrieve_k = top_k * self._reranker_multiplier if use_reranker else top_k
+
+        kwargs = {"k": retrieve_k}
         if where_filter:
             kwargs["filter"] = where_filter
 
         results = self._vectorstore.similarity_search_with_score(query_text, **kwargs)
+
+        if use_reranker and len(results) > top_k:
+            reranker = self._get_reranker()
+            documents = [doc.page_content for doc, _ in results]
+            ranked = reranker.rerank(query_text, documents)
+            final = []
+            for orig_idx, score in ranked[:top_k]:
+                doc, _ = results[orig_idx]
+                final.append(
+                    {
+                        "content": doc.page_content,
+                        "metadata": doc.metadata,
+                        "score": round(score, 4),
+                        "reranked": True,
+                    }
+                )
+            return final
 
         formatted = []
         for doc, score in results:
