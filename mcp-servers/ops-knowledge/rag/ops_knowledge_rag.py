@@ -20,7 +20,7 @@ def _resolve_path(path_str: str) -> str:
     return str(_PROJECT_ROOT / p)
 
 
-# bge-m3:567m context ~8192 tokens; Chinese ~1.5 chars/token; safe upper bound ~6000 chars
+# qwen3-embedding:0.6b context ~32K tokens; Chinese ~1.5 chars/token; safe upper bound ~6000 chars
 MAX_CHUNK_CHARS = 6000
 
 
@@ -143,7 +143,7 @@ class OpsKnowledgeRAG:
         self,
         persist_dir: str,
         ollama_base_url: str,
-        ollama_model: str = "bge-m3:567m",
+        ollama_model: str = "qwen3-embedding:0.6b",
         collection_name: str = "ops_knowledge",
         reranker_enabled: bool = False,
         reranker_model: str = "",

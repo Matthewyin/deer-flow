@@ -13,7 +13,7 @@ class SQLiteConfig:
 class ChromaConfig:
     persist_dir: str = ".deer-flow/vectors/ops_knowledge"
     ollama_base_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "bge-m3:567m"
+    ollama_model: str = "qwen3-embedding:0.6b"
     collection_name: str = "ops_knowledge"
     raw_dir: str = "docs/ops-knowledge/raw"
 
@@ -54,7 +54,7 @@ class ServerConfig:
                 ollama_base_url=os.getenv(
                     "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
                 ),
-                ollama_model=os.getenv("OLLAMA_EMBED_MODEL", "bge-m3:567m"),
+                ollama_model=os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:0.6b"),
                 collection_name=os.getenv("CHROMA_COLLECTION", "ops_knowledge"),
                 raw_dir=os.getenv("OPS_KNOWLEDGE_RAW_DIR", "docs/ops-knowledge/raw"),
             )
