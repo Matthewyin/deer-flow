@@ -82,7 +82,38 @@ def _read_docx(file_path: str) -> str:
         from docx import Document
 
         doc = Document(file_path)
-        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        parts: list[str] = []
+
+        # Interleave paragraphs and tables in document order
+        # python-docx tracks both via doc.element.body which contains
+        # <w:p> (paragraph) and <w:tbl> (table) elements in order.
+        body = doc.element.body
+        para_idx = 0
+        table_idx = 0
+
+        for child in body:
+            tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+            if tag == "p":
+                if para_idx < len(doc.paragraphs):
+                    text = doc.paragraphs[para_idx].text.strip()
+                    if text:
+                        parts.append(text)
+                para_idx += 1
+            elif tag == "tbl":
+                if table_idx < len(doc.tables):
+                    table = doc.tables[table_idx]
+                    rows_text: list[str] = []
+                    for row in table.rows:
+                        cells = [
+                            cell.text.strip().replace("\n", " ") for cell in row.cells
+                        ]
+                        if any(cells):
+                            rows_text.append(" | ".join(cells))
+                    if rows_text:
+                        parts.append("\n".join(rows_text))
+                table_idx += 1
+
+        return "\n\n".join(parts)
     except ImportError:
         logger.warning("python-docx not installed, reading DOCX as plain text")
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
