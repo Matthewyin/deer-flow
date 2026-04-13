@@ -1,6 +1,6 @@
 # 带宽管理系统架构设计文档
 
-> **版本**: v1.0  
+> **版本**: v1.1  
 > **日期**: 2026-04-08  
 > **状态**: 设计评审中  
 > **数据源唯一真相**: [`docs/bandwidth.md`](./bandwidth.md)
@@ -204,7 +204,11 @@ CREATE TABLE bandwidth_tiers (
 | 附件 | 带宽配置标准对照表 |
 | 模板一~四 | 4种邮件的完整格式模板 |
 
-**嵌入模型**: Ollama `bge-m3:567m`（本地部署）
+**嵌入模型**: Ollama `bge-m3:567m`（本地部署，1024 维）
+
+**重排序模型**: `BAAI/bge-reranker-v2-m3`（FlagEmbedding cross-encoder，CPU 推理，sigmoid 归一化到 [0,1]）
+
+**检索流程**: ChromaDB 向量检索 top_k×3 → Reranker 二次排序 → 返回 top_k 最终结果
 
 **查询示例**：
 - `"扩容操作流程"` → 返回 2.3 章节的常态化扩容步骤
@@ -306,6 +310,12 @@ otherwise → "maintain"
 ```
 
 **设计意图**: Skill 文档不重复策略数据，Agent 需要了解具体操作步骤、判定标准、角色职责时，通过此工具查询 RAG。
+
+**Reranker 二次排序**: `policy_search` 在内部执行两阶段检索：
+1. **向量召回**：从 ChromaDB 检索 top_k × 3 个候选文档（通过 `retrieval_multiplier` 控制过采样倍数）
+2. **Cross-encoder 精排**：将 query 与每个候选文档组成 (query, doc) 对，由 `BAAI/bge-reranker-v2-m3` 计算相关性分数（sigmoid 归一化），取分数最高的 top_k 个返回
+
+当 `RERANKER_ENABLED=false` 时，退化为纯向量检索模式。
 
 ---
 
@@ -536,6 +546,7 @@ sequenceDiagram
     participant M as MySQL
     participant S as SQLite
     participant R as ChromaDB
+    participant RR as Reranker<br/>(bge-reranker-v2-m3)
 
     U->>A: "亦庄到西藏数据端带宽使用到了5M"
     Note over A: ① 语义理解：站点=亦庄, 对端=西藏, 用途=数据端, 流量=5Mbps
@@ -549,9 +560,11 @@ sequenceDiagram
     B->>B: 5.0 > 4.0 → action="scale_up"
     B-->>A: action="scale_up", target="20M"
     A->>P: policy_search(query="扩容操作流程")
-    P->>R: 语义搜索
-    R-->>P: 返回 2.3 章节的操作步骤
-    P-->>A: 操作流程内容
+    P->>R: 向量检索 (top_k×3=9 个候选)
+    R-->>P: 返回候选文档
+    P->>RR: (query, doc) pairs → cross-encoder 精排
+    RR-->>P: 排序后 top_k 结果
+    P-->>A: 操作流程内容（经 reranker 精排）
     A->>E: email_generate(action="scale_up", line_info=..., assessment=...)
     E->>E: 生成模板一邮件草稿
     E-->>A: 邮件草稿
@@ -586,13 +599,16 @@ sequenceDiagram
     participant A as Agent
     participant P as policy_search
     participant R as ChromaDB
+    participant RR as Reranker<br/>(bge-reranker-v2-m3)
 
     U->>A: "什么情况下需要应急扩容？"
     A->>P: query="应急扩容条件"
-    P->>R: 语义搜索
-    R-->>P: 返回 2.2 章节
+    P->>R: 向量检索 (top_k×3=9 个候选)
+    R-->>P: 返回候选文档
+    P->>RR: cross-encoder 精排
+    RR-->>P: 排序后 top_k 结果
     Note over P: "应急扩容：实时监控显示带宽利用率持续30分钟处于高负载状态<br/>（单线利用率＞80%或出现明显丢包），且已造成业务响应延迟。"
-    P-->>A: 匹配内容
+    P-->>A: 匹配内容（经 reranker 精排）
     A->>U: 直接回复用户
 ```
 
@@ -656,6 +672,12 @@ flowchart TD
 | SQLITE_DB_PATH | SQLite 数据库路径 | .deer-flow/db/network_ops.db |
 | CHROMA_PERSIST_DIR | ChromaDB 持久化目录 | .deer-flow/vectors/bandwidth_policy |
 | OLLAMA_BASE_URL | Ollama 嵌入模型地址 | http://host.docker.internal:11434 |
+| RERANKER_MODEL | Reranker 模型名称 | BAAI/bge-reranker-v2-m3 |
+| RERANKER_DEVICE | Reranker 推理设备 | cpu |
+| RERANKER_ENABLED | 是否启用 Reranker | true |
+| RERANKER_MAX_LENGTH | 最大序列长度 | 512 |
+| RERANKER_RETRIEVAL_MULTIPLIER | 向量检索过采样倍数 | 3 |
+| HF_HUB_OFFLINE | 离线模式（防止模型初始化时联网） | 1 |
 
 ### 10.2 依赖
 
@@ -665,7 +687,9 @@ fastmcp>=2.0
 mysql-connector-python>=8.0
 langchain-chroma>=0.1
 langchain-ollama>=0.1
+langchain-openai>=0.1
 pydantic>=2.0
+FlagEmbedding>=1.2
 ```
 
 ### 10.3 部署模式
