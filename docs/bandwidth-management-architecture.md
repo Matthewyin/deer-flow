@@ -689,8 +689,17 @@ langchain-chroma>=0.1
 langchain-ollama>=0.1
 langchain-openai>=0.1
 pydantic>=2.0
-FlagEmbedding>=1.2
+FlagEmbedding>=1.2,<1.3
+transformers>=4.45,<5.0
+huggingface-hub>=0.20,<1.0
+sentence-transformers>=2.2.2,<4.0
+datasets
+accelerate>=0.20.1
+peft>=0.5.0
 ```
+
+> **注意**: 这些 Reranker 相关依赖通过 `docker-compose-dev.yaml` 的 langgraph command 安装到容器 venv 中，
+> 使用 `uv run --no-sync` 防止依赖版本被覆盖。详见 ops-knowledge-architecture.md §10.2。
 
 ### 10.3 部署模式
 

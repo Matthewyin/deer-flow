@@ -181,7 +181,7 @@ services:
         UV_IMAGE: ${UV_IMAGE:-ghcr.io/astral-sh/uv:0.7.20}
         UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.org/simple}
     container_name: deer-flow-langgraph
-    command: sh -c "cd backend && uv sync && uv pip install --python /app/backend/.venv/bin/python paramiko apscheduler && uv pip install --python /app/backend/.venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu && uv pip install --python /app/backend/.venv/bin/python transformers && allow_blocking='' && if [ \"\${LANGGRAPH_ALLOW_BLOCKING:-0}\" = '1' ]; then allow_blocking='--allow-blocking'; fi && uv run langgraph dev --no-browser \${allow_blocking} --host 0.0.0.0 --port 2024 --n-jobs-per-worker \${LANGGRAPH_JOBS_PER_WORKER:-10} > /app/logs/langgraph.log 2>&1"
+    command: sh -c "cd backend && uv sync && uv pip install --python /app/backend/.venv/bin/python paramiko apscheduler && uv pip install --python /app/backend/.venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu && uv pip install --python /app/backend/.venv/bin/python 'transformers>=4.45,<5.0' 'huggingface-hub>=0.20,<1.0' 'FlagEmbedding>=1.2,<1.3' 'datasets' 'accelerate>=0.20.1' 'sentence-transformers>=2.2.2,<4.0' 'peft>=0.5.0' && allow_blocking='' && if [ \"\${LANGGRAPH_ALLOW_BLOCKING:-0}\" = '1' ]; then allow_blocking='--allow-blocking'; fi && uv run --no-sync langgraph dev --no-browser \${allow_blocking} --host 0.0.0.0 --port 2024 --n-jobs-per-worker \${LANGGRAPH_JOBS_PER_WORKER:-10} > /app/logs/langgraph.log 2>&1"
     volumes:
       - ../backend/:/app/backend/
       - ../docker/volumes/langgraph-venv:/app/backend/.venv
@@ -195,6 +195,8 @@ services:
       - ~/.cache/uv:/root/.cache/uv
       # Mount HuggingFace model cache for reranker persistence
       - ../docker/volumes/hf-cache:/root/.cache/huggingface
+      # Mount persistent data (vectors, SQLite, probe data) to survive container restarts
+      - ../docker/volumes/deer-flow-data:/app/.deer-flow
       # DooD: same as gateway — AioSandboxProvider runs inside LangGraph process.
       - /var/run/docker.sock:/var/run/docker.sock
       # CLI auth directories for auto-auth (Claude Code + Codex CLI)

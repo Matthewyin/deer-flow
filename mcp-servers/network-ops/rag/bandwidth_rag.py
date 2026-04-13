@@ -141,9 +141,9 @@ class BandwidthRAG:
             return self._reranker
         import sys
 
-        common_path = str(Path(__file__).resolve().parent.parent.parent / "common")
-        if common_path not in sys.path:
-            sys.path.insert(0, common_path)
+        mcp_servers_path = str(Path(__file__).resolve().parent.parent.parent)
+        if mcp_servers_path not in sys.path:
+            sys.path.insert(0, mcp_servers_path)
         from common.reranker import Reranker
 
         self._reranker = Reranker(
