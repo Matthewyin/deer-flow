@@ -771,13 +771,35 @@ flowchart TD
 
 ### 10.2 Docker 部署
 
-在 `docker/docker-compose-dev.yaml` 的 langgraph 服务中追加 volume 挂载：
+在 `docker/docker-compose-dev.yaml` 的 langgraph 服务中配置 volume 挂载：
 
 ```
 挂载映射:
-  ./docs/ops-knowledge:/app/docs/ops-knowledge
-  ./mcp-servers/ops-knowledge:/app/mcp-servers/ops-knowledge
+  # 代码挂载
+  ./backend/:/app/backend/                          # 后端代码（开发热更新）
+  ./mcp-servers/:/app/mcp-servers/:ro               # MCP Server 代码（只读）
+
+  # 持久化数据挂载（容器重启不丢失）
+  docker/volumes/langgraph-venv:/app/backend/.venv  # Python venv（含 FlagEmbedding 等手动安装的包）
+  docker/volumes/hf-cache:/root/.cache/huggingface  # HuggingFace 模型缓存（bge-reranker-v2-m3 ~2.16GB）
+  docker/volumes/deer-flow-data:/app/.deer-flow     # 向量库 + SQLite + 探针数据
 ```
+
+**容器启动时依赖安装顺序**（通过 docker-compose command 实现）：
+
+1. `uv sync` — 安装 pyproject.toml 定义的基础依赖
+2. `uv pip install` — 安装额外依赖：paramiko, apscheduler, torch(CPU), transformers, huggingface-hub
+3. `uv pip install` — 安装 FlagEmbedding 及其兼容依赖（datasets, accelerate, sentence-transformers, peft）
+4. `uv run --no-sync` — 启动 langgraph 服务（`--no-sync` 防止重新同步覆盖手动安装的包版本）
+
+**关键版本约束**（FlagEmbedding + transformers + huggingface-hub 三角兼容）：
+
+| 包 | 版本约束 | 原因 |
+|---|---|---|
+| transformers | >=4.45, <5.0 | FlagEmbedding 1.2.x 依赖的 API 在 5.x 中被移除 |
+| FlagEmbedding | >=1.2, <1.3 | 1.3.x 的 decoder_only reranker 需要新版 transformers |
+| huggingface-hub | >=0.20, <1.0 | transformers <5.0 的硬性要求 |
+| sentence-transformers | >=2.2.2, <4.0 | FlagEmbedding 间接依赖，需限制上限避免拉入新版 huggingface-hub |
 
 ### 10.3 MCP Server 注册
 
