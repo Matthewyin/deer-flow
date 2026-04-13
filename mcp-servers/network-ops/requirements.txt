@@ -4,3 +4,4 @@ langchain-chroma>=0.1
 langchain-ollama>=0.1
 langchain-openai>=0.1
 pydantic>=2.0
+FlagEmbedding>=1.2

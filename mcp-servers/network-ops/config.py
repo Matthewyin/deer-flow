@@ -22,7 +22,7 @@ class SQLiteConfig:
 class ChromaConfig:
     persist_dir: str = ".deer-flow/vectors/bandwidth_policy"
     ollama_base_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "nomic-embed-text:v1.5"
+    ollama_model: str = "bge-m3:567m"
     collection_name: str = "bandwidth_policy"
     md_path: str = "docs/bandwidth.md"
 
@@ -36,7 +36,7 @@ class RerankerConfig:
     """
 
     enabled: bool = True
-    model_name: str = "Qwen/Qwen3-Reranker-0.6B"
+    model_name: str = "BAAI/bge-reranker-v2-m3"
     device: str = "cpu"
     max_length: int = 512
     # Over-retrieve from vector store, then rerank down to top_k
@@ -71,14 +71,14 @@ class ServerConfig:
                 ollama_base_url=os.getenv(
                     "OLLAMA_BASE_URL", "http://host.docker.internal:11434"
                 ),
-                ollama_model=os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text:v1.5"),
+                ollama_model=os.getenv("OLLAMA_EMBED_MODEL", "bge-m3:567m"),
                 collection_name=os.getenv("CHROMA_COLLECTION", "bandwidth_policy"),
                 md_path=os.getenv("BANDWIDTH_MD_PATH", "docs/bandwidth.md"),
             )
         if self.reranker is None:
             self.reranker = RerankerConfig(
                 enabled=os.getenv("RERANKER_ENABLED", "true").lower() == "true",
-                model_name=os.getenv("RERANKER_MODEL", "Qwen/Qwen3-Reranker-0.6B"),
+                model_name=os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
                 device=os.getenv("RERANKER_DEVICE", "cpu"),
                 max_length=int(os.getenv("RERANKER_MAX_LENGTH", "512")),
                 retrieval_multiplier=int(

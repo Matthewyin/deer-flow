@@ -20,7 +20,7 @@ def _resolve_path(path_str: str) -> str:
     return str(_PROJECT_ROOT / p)
 
 
-# nomic-embed-text:v1.5 context 8192 tokens; Chinese ~1.5-2 chars/token
+# bge-m3:567m context 8192 tokens; Chinese ~1.5-2 chars/token
 # Conservative: 2000 chars ensures no 400 errors even with mixed CJK/ASCII
 MAX_CHUNK_CHARS = 2000
 
@@ -156,7 +156,7 @@ class OpsKnowledgeRAG:
         self,
         persist_dir: str,
         ollama_base_url: str,
-        ollama_model: str = "nomic-embed-text:v1.5",
+        ollama_model: str = "bge-m3:567m",
         collection_name: str = "ops_knowledge",
         reranker_enabled: bool = False,
         reranker_model: str = "",

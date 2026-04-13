@@ -219,6 +219,7 @@ services:
       - DEER_FLOW_SANDBOX_HOST=host.docker.internal
       - DEER_FLOW_CONFIG_PATH=/app/config.yaml
       - DEER_FLOW_EXTENSIONS_CONFIG_PATH=/app/extensions_config.json
+      - HF_HUB_OFFLINE=1
     env_file:
       - ../.env
     extra_hosts:

@@ -2,13 +2,13 @@
 """Batch ingest all documents from docs/ops-knowledge/raw/ into ops_knowledge RAG.
 
 Directory mapping:
-  raw/预案/* → doc_type=emergency
-  raw/SOP/*  → doc_type=sop
+  raw/01 系统应急预案/* → doc_type=emergency_system
+  raw/02 网络应急预案/* → doc_type=emergency_network
+  raw/03 安全应急预案/* → doc_type=emergency_security
+  raw/SOP/*            → doc_type=sop
 
 Usage:
   python scripts/batch_ingest_ops_knowledge.py [--dry-run]
-
---dry-run: only list files, don't ingest.
 """
 
 import hashlib
@@ -104,16 +104,20 @@ def _read_xlsx(file_path: str) -> str:
 
 
 def classify_doc_type(rel_path: str) -> str:
-    """Determine doc_type from directory structure."""
     parts = Path(rel_path).parts
-    # parts[0] = "docs", parts[1] = "ops-knowledge", parts[2] = "raw", parts[3] = "预案" or "SOP"
     if len(parts) >= 4:
         top_dir = parts[3]
-        if top_dir == "预案":
+        if top_dir in ("01 系统应急预案", "02 网络应急预案", "03 安全应急预案", "预案"):
+            if top_dir.startswith("01"):
+                return "emergency_system"
+            elif top_dir.startswith("02"):
+                return "emergency_network"
+            elif top_dir.startswith("03"):
+                return "emergency_security"
             return "emergency"
         elif top_dir == "SOP":
             return "sop"
-    return "sop"  # default
+    return "sop"
 
 
 def extract_title(filename: str) -> str:
