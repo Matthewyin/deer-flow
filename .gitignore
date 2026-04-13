@@ -62,7 +62,7 @@ config.yaml.bak
 
 # User specified exclusions - DO NOT UPLOAD
 resources/
-docs/ops-knowledge/raw/预案/
+docs/ops-knowledge/raw/
 
 # Runtime data that may contain user info
 backend/.deer-flow/

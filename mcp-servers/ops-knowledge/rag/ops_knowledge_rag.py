@@ -20,16 +20,15 @@ def _resolve_path(path_str: str) -> str:
     return str(_PROJECT_ROOT / p)
 
 
-# qwen3-embedding:0.6b context ~32K tokens; Chinese ~1.5 chars/token; safe upper bound ~6000 chars
-MAX_CHUNK_CHARS = 6000
+# nomic-embed-text:v1.5 context 8192 tokens; Chinese ~1.5-2 chars/token
+# Conservative: 2000 chars ensures no 400 errors even with mixed CJK/ASCII
+MAX_CHUNK_CHARS = 2000
 
 
 def _split_oversized(chunk: str, max_chars: int = MAX_CHUNK_CHARS) -> List[str]:
-    """Split a single chunk that exceeds max_chars by paragraphs or sentences."""
     if len(chunk) <= max_chars:
         return [chunk]
 
-    # Try splitting by double newlines first
     parts = re.split(r"\n{2,}", chunk)
     result: List[str] = []
     buffer = ""
@@ -39,7 +38,7 @@ def _split_oversized(chunk: str, max_chars: int = MAX_CHUNK_CHARS) -> List[str]:
         else:
             if buffer:
                 result.append(buffer)
-            # If a single part is still too large, split by sentences
+                buffer = ""
             if len(part) > max_chars:
                 sentences = re.split(r"(?<=[。！？\n.!?])\s*", part)
                 sub_buf = ""
@@ -50,13 +49,25 @@ def _split_oversized(chunk: str, max_chars: int = MAX_CHUNK_CHARS) -> List[str]:
                         if sub_buf:
                             result.append(sub_buf.strip())
                         sub_buf = sent
+                        # Hard-split any single sentence still exceeding max_chars
+                        while len(sub_buf) > max_chars:
+                            result.append(sub_buf[:max_chars])
+                            sub_buf = sub_buf[max_chars:]
                 if sub_buf.strip():
                     result.append(sub_buf.strip())
             else:
                 buffer = part.strip()
     if buffer.strip():
         result.append(buffer.strip())
-    return result if result else [chunk[:max_chars]]
+
+    # Final safety: hard-split any remaining oversized chunks
+    final: List[str] = []
+    for r in result if result else [chunk[:max_chars]]:
+        while len(r) > max_chars:
+            final.append(r[:max_chars])
+            r = r[max_chars:]
+        final.append(r)
+    return final
 
 
 def _enforce_max_chunks(
@@ -124,11 +135,13 @@ def _chunk_whole(content: str) -> List[str]:
 
 
 def chunk_by_doc_type(content: str, doc_type: str) -> List[str]:
-    """Dispatch to appropriate chunking strategy based on doc_type."""
     strategies = {
         "fault": _chunk_by_paragraphs,
         "sop": _chunk_by_headings,
         "emergency": _chunk_whole,
+        "emergency_system": _chunk_whole,
+        "emergency_network": _chunk_whole,
+        "emergency_security": _chunk_whole,
         "solution": _chunk_by_paragraphs,
         "event": _chunk_by_paragraphs,
     }
@@ -143,7 +156,7 @@ class OpsKnowledgeRAG:
         self,
         persist_dir: str,
         ollama_base_url: str,
-        ollama_model: str = "qwen3-embedding:0.6b",
+        ollama_model: str = "nomic-embed-text:v1.5",
         collection_name: str = "ops_knowledge",
         reranker_enabled: bool = False,
         reranker_model: str = "",

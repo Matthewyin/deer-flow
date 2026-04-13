@@ -62,7 +62,7 @@ class BandwidthRAG:
         self,
         persist_dir: str,
         ollama_base_url: str,
-        ollama_model: str = "qwen3-embedding:0.6b",
+        ollama_model: str = "nomic-embed-text:v1.5",
         collection_name: str = "bandwidth_policy",
         md_path: str = "docs/bandwidth.md",
         reranker_enabled: bool = False,
