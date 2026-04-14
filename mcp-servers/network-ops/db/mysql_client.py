@@ -89,7 +89,7 @@ Query: "{description}"
 
 Available search fields:
 - local_site: Local data center (e.g., "亦庄数据中心", "西五环数据中心")
-- remote_name: Remote destination (e.g., "山东", "西藏", "北京体彩中心")
+- remote_name: Remote destination (e.g., "山东", "西藏", "北京XXX中心")
 - provider: Telecom provider (电信, 联通, 移动)
 - purpose: Line purpose (数据端, 管理端, 北京单场)
 - bandwidth: Bandwidth like "10M", "20M"

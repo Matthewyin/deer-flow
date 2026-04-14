@@ -62,7 +62,8 @@
       "args": ["/app/mcp-servers/business-baseline/server.py"],
       "env": {
         "BUSINESS_BASELINE_DB_PATH": ".deer-flow/db/business_baseline.db",
-        "EVERYBUSINESS_FILE_PATH": "docs/businessInfo/everybusiness"
+        "EVERYBUSINESS_FILE_PATH": "docs/businessInfo/everybusiness",
+        "REPORT_SEPARATOR": "$REPORT_SEPARATOR"
       },
       "description": "业务基线监控：解析每日运营报告、查询基线、偏差对比、趋势分析"
     },

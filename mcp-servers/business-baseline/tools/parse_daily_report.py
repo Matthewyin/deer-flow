@@ -681,7 +681,7 @@ def parse_daily_report_impl() -> dict:
         conn.close()
         return {"error": f"Failed to read file: {e}", "parsed": 0}
 
-    blocks = raw_text.split("中国体育彩票技术服务台")
+    blocks = raw_text.split(cfg.file.report_separator)
     blocks = [b.strip() for b in blocks if b.strip()]
 
     total_reports = 0

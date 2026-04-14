@@ -39,8 +39,8 @@ coverage/
 .claude/
 skills/custom/*
 !skills/custom/bandwidth-management/
-!skills/custom/emergency-plan/
 !skills/custom/probe-baseline/
+docs/businessInfo/
 logs/
 log/
 

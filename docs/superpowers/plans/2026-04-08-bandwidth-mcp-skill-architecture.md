@@ -318,7 +318,7 @@ Query: "{description}"
 
 Available search fields:
 - local_site: Local data center (e.g., "亦庄数据中心", "西五环数据中心")
-- remote_name: Remote destination (e.g., "山东", "西藏", "北京体彩中心")
+- remote_name: Remote destination (e.g., "山东", "西藏", "北京XXX中心")
 - provider: Telecom provider (电信, 联通, 移动)
 - purpose: Line purpose (数据端, 管理端, 北京单场)
 - bandwidth: Bandwidth like "10M", "20M"
@@ -837,7 +837,7 @@ def register(mcp: FastMCP):
 
         Args:
             local_site: 本端站点，如 "亦庄数据中心"、"西五环"
-            remote_name: 对端名称，如 "山东"、"西藏"、"体彩中心"
+            remote_name: 对端名称，如 "山东"、"西藏"、"XXX中心"
             provider: 运营商：电信、联通、移动
             purpose: 用途：数据端、管理端、北京单场
             bandwidth: 带宽，如 "10M"、"20M"
