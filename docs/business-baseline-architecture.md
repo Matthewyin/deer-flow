@@ -412,7 +412,7 @@ deviation_pct = ((current - baseline) / baseline * 100) if baseline != 0 else No
 
 ```yaml
 name: Business
-description: 业务运营基线分析智能体，负责XXX全业务平台每日运行数据的解析入库、基线管理、全量对比分析、趋势查询。通过对比当前值与全历史平均基线，为运维人员提供量化的业务健康评估。
+  description: 业务运营基线分析智能体，负责XXX全业务平台每日运行数据的解析入库、基线管理、全量对比分析、趋势查询。通过对比当前值与全历史平均基线，为运维人员提供量化的业务健康评估。
 skills:
   - business-baseline
 ```

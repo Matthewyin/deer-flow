@@ -10,6 +10,7 @@ class SQLiteConfig:
 @dataclass
 class FileConfig:
     everybusiness_path: str = "/app/docs/businessInfo/everybusiness"
+    report_separator: str = os.getenv("REPORT_SEPARATOR", "")
 
 
 @dataclass
