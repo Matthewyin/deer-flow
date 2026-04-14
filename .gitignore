@@ -20,6 +20,9 @@ __pycache__/
 .venv
 venv/
 
+# SSH keys (project-local copies for container mount)
+.ssh/
+
 # Environment variables
 .env
 

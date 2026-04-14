@@ -10,7 +10,7 @@ class SQLiteConfig:
 @dataclass
 class FileConfig:
     everybusiness_path: str = "/app/docs/businessInfo/everybusiness"
-    report_separator: str = os.getenv("REPORT_SEPARATOR", "")
+    report_separator: str = os.getenv("REPORT_SEPARATOR", "XXX技术服务台")
 
 
 @dataclass
@@ -30,6 +30,7 @@ class ServerConfig:
                 everybusiness_path=os.getenv(
                     "EVERYBUSINESS_FILE_PATH", "/app/docs/businessInfo/everybusiness"
                 ),
+                report_separator=os.getenv("REPORT_SEPARATOR", "XXX技术服务台"),
             )
 
 

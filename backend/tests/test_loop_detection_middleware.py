@@ -3,7 +3,7 @@
 import copy
 from unittest.mock import MagicMock
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 
 from deerflow.agents.middlewares.loop_detection_middleware import (
     _HARD_STOP_MSG,
@@ -82,12 +82,13 @@ class TestLoopDetection:
         for _ in range(2):
             mw._apply(_make_state(tool_calls=call), runtime)
 
-        # Third identical call triggers warning
+        # Third identical call triggers warning — strips tool_calls and appends text
         result = mw._apply(_make_state(tool_calls=call), runtime)
         assert result is not None
         msgs = result["messages"]
         assert len(msgs) == 1
-        assert isinstance(msgs[0], HumanMessage)
+        assert isinstance(msgs[0], AIMessage)
+        assert msgs[0].tool_calls == []
         assert "LOOP DETECTED" in msgs[0].content
 
     def test_warn_only_injected_once(self):

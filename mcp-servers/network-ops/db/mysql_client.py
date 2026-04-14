@@ -79,9 +79,14 @@ class MySQLClient:
         cursor.close()
         return results
 
-    async def search_by_llm(self, description: str) -> list[dict]:
+    async def search_by_llm(self, description: str, llm_config=None) -> list[dict]:
         """Search lines using LLM to extract parameters from natural language."""
         from langchain_openai import ChatOpenAI
+
+        if llm_config is None:
+            from config import get_config
+
+            llm_config = get_config().llm
 
         prompt = f"""Analyze this network line query and extract search parameters.
 
@@ -103,7 +108,17 @@ Examples:
 
 Response:"""
 
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        if not llm_config.api_key:
+            logger.warning("No LLM API key configured, falling back to keyword search")
+            return self.search_lines(
+                remote_name=f"%{description}%", purpose=f"%{description}%"
+            )
+
+        kwargs = dict(model=llm_config.model, temperature=0, api_key=llm_config.api_key)
+        if llm_config.base_url:
+            kwargs["base_url"] = llm_config.base_url
+
+        model = ChatOpenAI(**kwargs)
         response = await model.ainvoke([("human", prompt)])
 
         content = response.content.strip()

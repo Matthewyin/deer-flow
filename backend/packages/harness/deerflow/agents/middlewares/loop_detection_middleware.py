@@ -6,8 +6,8 @@ arguments indefinitely until the recursion limit kills the run.
 Detection strategy:
   1. After each model response, hash the tool calls (name + args).
   2. Track recent hashes in a sliding window.
-  3. If the same hash appears >= warn_threshold times, inject a
-     "you are repeating yourself — wrap up" system message (once per hash).
+  3. If the same hash appears >= warn_threshold times, strip tool_calls
+     from the AIMessage and append a warning (once per hash).
   4. If it appears >= hard_limit times, strip all tool_calls from the
      response so the agent is forced to produce a final text answer.
 """
@@ -21,7 +21,6 @@ from typing import override
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import HumanMessage
 from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
@@ -215,13 +214,18 @@ class LoopDetectionMiddleware(AgentMiddleware[AgentState]):
             return {"messages": [stripped_msg]}
 
         if warning:
-            # Inject as HumanMessage instead of SystemMessage to avoid
-            # Anthropic's "multiple non-consecutive system messages" error.
-            # Anthropic models require system messages only at the start of
-            # the conversation; injecting one mid-conversation crashes
-            # langchain_anthropic's _format_messages(). HumanMessage works
-            # with all providers. See #1299.
-            return {"messages": [HumanMessage(content=warning)]}
+            # Same approach as hard_stop: modify AIMessage in-place rather than
+            # inject HumanMessage, which breaks AIMessage→ToolMessage ordering
+            # required by strict providers. See #1299.
+            messages = state.get("messages", [])
+            last_msg = messages[-1]
+            stripped_msg = last_msg.model_copy(
+                update={
+                    "tool_calls": [],
+                    "content": self._append_text(last_msg.content, _WARNING_MSG),
+                }
+            )
+            return {"messages": [stripped_msg]}
 
         return None
 

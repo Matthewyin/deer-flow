@@ -212,6 +212,13 @@ services:
         read_only: true
         bind:
           create_host_path: true
+      # SSH keys for remote-probe MCP server (paramiko SSH to ECS nodes)
+      - type: bind
+        source: ${DEER_FLOW_ROOT:?DEER_FLOW_ROOT must be set}/.ssh
+        target: /root/.ssh
+        read_only: true
+        bind:
+          create_host_path: true
     working_dir: /app
     environment:
       - CI=true

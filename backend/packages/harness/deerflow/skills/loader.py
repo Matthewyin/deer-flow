@@ -8,6 +8,34 @@ from .types import Skill
 logger = logging.getLogger(__name__)
 
 
+def _walk_skills(category_path: Path):
+    """Walk skills directory using pathlib (blockbuster-safe).
+
+    LangGraph dev mode uses ``blockbuster`` to detect synchronous blocking calls
+    inside the async event loop.  ``os.walk`` triggers ``ScandirIterator.__next__``
+    which ``blockbuster`` rejects.  Pure-``pathlib`` traversal avoids this.
+    """
+    yield from _pathlib_walk(category_path)
+
+
+def _pathlib_walk(path: Path):
+    """Recursive directory walk yielding (dir_path, file_names) tuples."""
+    try:
+        entries = sorted(path.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return
+    file_names = []
+    for entry in entries:
+        if entry.name.startswith("."):
+            continue
+        if entry.is_dir():
+            yield from _pathlib_walk(entry)
+        else:
+            file_names.append(entry.name)
+    if file_names:
+        yield path, file_names
+
+
 def get_skills_root_path() -> Path:
     """
     Get the root path of the skills directory.
@@ -63,9 +91,7 @@ def load_skills(skills_path: Path | None = None, use_config: bool = True, enable
         if not category_path.exists() or not category_path.is_dir():
             continue
 
-        for current_root, dir_names, file_names in os.walk(category_path, followlinks=True):
-            # Keep traversal deterministic and skip hidden directories.
-            dir_names[:] = sorted(name for name in dir_names if not name.startswith("."))
+        for current_root, file_names in _walk_skills(category_path):
             if "SKILL.md" not in file_names:
                 continue
 
