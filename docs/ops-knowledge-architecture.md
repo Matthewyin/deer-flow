@@ -780,17 +780,22 @@ flowchart TD
   ./mcp-servers/:/app/mcp-servers/:ro               # MCP Server 代码（只读）
 
   # 持久化数据挂载（容器重启不丢失）
-  docker/volumes/langgraph-venv:/app/backend/.venv  # Python venv（含 FlagEmbedding 等手动安装的包）
   docker/volumes/hf-cache:/root/.cache/huggingface  # HuggingFace 模型缓存（bge-reranker-v2-m3 ~2.16GB）
   docker/volumes/deer-flow-data:/app/.deer-flow     # 向量库 + SQLite + 探针数据
 ```
 
-**容器启动时依赖安装顺序**（通过 docker-compose command 实现）：
+**dev-full 镜像预装方案**：
 
-1. `uv sync` — 安装 pyproject.toml 定义的基础依赖
-2. `uv pip install` — 安装额外依赖：paramiko, apscheduler, torch(CPU), transformers, huggingface-hub
-3. `uv pip install` — 安装 FlagEmbedding 及其兼容依赖（datasets, accelerate, sentence-transformers, peft）
-4. `uv run --no-sync` — 启动 langgraph 服务（`--no-sync` 防止重新同步覆盖手动安装的包版本）
+langgraph 使用 `dev-full` Docker stage 构建的自定义镜像，所有运行时依赖（torch CPU、transformers、FlagEmbedding、paramiko、apscheduler 等）在镜像构建时预装。容器启动时无需 `uv sync`，直接通过 `/opt/venv` 使用预装的 venv。
+
+镜像构建流程（Dockerfile dev-full stage）：
+1. `uv pip install torch --index-url CPU` — 安装 CPU 版 PyTorch（~200MB，避免 GPU 版 ~2GB+）
+2. `uv sync --extra mcp-runtime --extra ml-embedding` — 注册并安装 ML/MCP 运行时依赖
+3. venv 重定位至 `/opt/venv` — 避免 `../backend/` bind mount 覆盖 `.venv` 目录
+
+容器启动命令（docker-compose-dev.yaml）：
+- `UV_PROJECT_ENVIRONMENT=/opt/venv /opt/venv/bin/python -m langgraph_cli dev ...`
+- `--no-sync` 不再需要（不使用 `uv run`），直接调用 python 模块
 
 **关键版本约束**（FlagEmbedding + transformers + huggingface-hub 三角兼容）：
 

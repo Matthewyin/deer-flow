@@ -1,7 +1,8 @@
 # Backend Dockerfile — multi-stage build
-# Stage 1 (builder): compiles native Python extensions with build-essential
-# Stage 2 (dev):     retains toolchain for dev containers (uv sync at startup)
-# Stage 3 (runtime): clean image without compiler toolchain for production
+# Stage 1 (builder):   compiles native Python extensions with build-essential
+# Stage 2 (dev):       retains toolchain for dev containers (uv sync at startup)
+# Stage 2.5 (dev-full): dev + pre-installed ML/MCP runtime deps (torch, embeddings, paramiko)
+# Stage 3 (runtime):   clean image without compiler toolchain for production
 
 # UV source image (override for restricted networks that cannot reach ghcr.io)
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.7.20
@@ -57,6 +58,34 @@ COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
 EXPOSE 8001 2024
 
 CMD ["sh", "-c", "cd backend && PYTHONPATH=. uv run uvicorn app.gateway.app:app --host 0.0.0.0 --port 8001"]
+
+# ── Stage 2.5: Dev Full ──────────────────────────────────────────────────────
+# Pre-installs ML/RAG + MCP runtime deps so containers start in ~10s instead of ~3min.
+# Uses `uv sync --extra` to register packages in the venv manifest, preventing
+# startup-time `uv sync` from removing them as "unmanaged" extras.
+# The venv is relocated to /opt/venv to survive the backend/ bind mount overlay.
+FROM dev AS dev-full
+
+ARG UV_INDEX_URL
+
+# Step 1: Install CPU-only PyTorch first (prevents GPU torch from PyPI)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /app/backend/.venv/bin/python \
+    torch --index-url https://download.pytorch.org/whl/cpu
+
+# Step 2: Sync extras (ml-embedding pulls transformers → torch; CPU version already present)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    sh -c "cd /app/backend && \
+    UV_INDEX_URL=${UV_INDEX_URL:-https://pypi.org/simple} \
+    uv sync --extra mcp-runtime --extra ml-embedding"
+
+# Step 3: Relocate venv to /opt/venv so it survives the backend/ bind mount.
+# The dev compose overlays ../backend/ onto /app/backend/, which would shadow
+# /app/backend/.venv. By moving to /opt/venv and creating a symlink, the
+# pre-installed packages remain accessible without a separate named volume.
+RUN cp -a /app/backend/.venv /opt/venv \
+    && rm -rf /app/backend/.venv \
+    && ln -sf /opt/venv /app/backend/.venv
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 # Clean image without build-essential — reduces size (~200 MB) and attack surface.
