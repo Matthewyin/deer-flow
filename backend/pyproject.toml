@@ -21,6 +21,12 @@ dependencies = [
     "fastmcp>=2.0",
     "paramiko>=3.0",
     "apscheduler>=3.10",
+    # MCP server runtime dependencies (required for network-ops)
+    "mysql-connector-python>=9.0",
+    "langchain-openai>=0.3",
+    "langchain-ollama>=0.3",
+    "langchain-chroma>=0.2",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
