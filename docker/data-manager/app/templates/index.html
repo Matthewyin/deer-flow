@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeerFlow 数据管理</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+.header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 20px; font-weight: 600; }
+.header span { font-size: 13px; opacity: 0.7; }
+.tabs { display: flex; background: #fff; border-bottom: 2px solid #e0e0e0; padding: 0 24px; }
+.tab { padding: 12px 20px; cursor: pointer; font-size: 14px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+.tab:hover { color: #333; }
+.tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: 600; }
+.content { max-width: 900px; margin: 24px auto; padding: 0 24px; }
+.panel { display: none; }
+.panel.active { display: block; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a2e; }
+.info { font-size: 13px; color: #888; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+textarea { width: 100%; min-height: 300px; border: 1px solid #ddd; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; resize: vertical; }
+textarea:focus { outline: none; border-color: #1a1a2e; }
+.btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+.btn-primary { background: #1a1a2e; color: #fff; }
+.btn-primary:hover { background: #2d2d4e; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+.actions { margin-top: 12px; display: flex; gap: 8px; }
+select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+th { color: #888; font-weight: 600; }
+.status-ok { color: #27ae60; }
+.status-fail { color: #e74c3c; }
+.status-partial { color: #f39c12; }
+#message { display: none; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+.msg-success { display: block; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.msg-error { display: block; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.upload-area { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+.upload-area input[type="file"] { font-size: 13px; }
+.loading { opacity: 0.6; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🦌 DeerFlow 数据管理</h1>
+  <span>Data Manager</span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="everybusiness">每日运营</div>
+  <div class="tab" data-tab="emergency">应急预案</div>
+  <div class="tab" data-tab="probe">探测数据</div>
+</div>
+
+<div id="message"></div>
+
+<div class="content">
+
+  <!-- Tab 1: EveryBusiness -->
+  <div class="panel active" id="panel-everybusiness">
+    <div class="card">
+      <h2>每日运营数据</h2>
+      <div id="eb-meta" style="font-size:13px;color:#888;margin-bottom:8px;"></div>
+      <textarea id="eb-content" placeholder="粘贴每日运营数据文本...&#10;&#10;格式：【全业务统一运营支撑平台运行情况概述】&#10;3月15日7时至3月16日7时..."></textarea>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="ebSubmit()">提交并解析</button>
+        <button class="btn" onclick="ebClear()">清空</button>
+        <button class="btn" onclick="ebLoad()" style="margin-left:auto;">加载当前文件</button>
+      </div>
+      <div class="info">提交后将覆盖现有文件并自动触发解析入库。解析会按日期去重，已入库的日期不会重复插入。</div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Emergency -->
+  <div class="panel" id="panel-emergency">
+    <div class="card">
+      <h2>应急预案文件管理</h2>
+      <div style="margin-bottom:12px;">
+        <select id="em-category" onchange="emLoadFiles()"></select>
+      </div>
+      <table id="em-files-table">
+        <thead><tr><th>文件名</th><th>大小</th><th>修改时间</th><th></th></tr></thead>
+        <tbody id="em-files"></tbody>
+      </table>
+      <div class="upload-area">
+        <input type="file" id="em-file" accept=".docx,.pdf,.xlsx,.txt,.md,.csv">
+        <button class="btn btn-primary" onclick="emUpload()">上传并入库</button>
+      </div>
+      <div class="info">上传后将自动触发向量数据库入库。支持 .docx / .pdf / .xlsx / .txt / .md / .csv 格式。</div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Probe -->
+  <div class="panel" id="panel-probe">
+    <div class="card">
+      <h2>ECS 探测数据采集</h2>
+      <div id="probe-status" style="margin-bottom:12px;"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="probeCollect()">立即采集</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>采集历史</h2>
+      <table>
+        <thead><tr><th>时间</th><th>状态</th><th>新文件</th><th>错误</th></tr></thead>
+        <tbody id="probe-history"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>各区域文件数</h2>
+      <div id="probe-regions"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+let emCategories = {};
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'emergency') emInit();
+    if (tab.dataset.tab === 'probe') probeLoad();
+  };
+});
+
+function showMsg(text, isError) {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.className = isError ? 'msg-error' : 'msg-success';
+  setTimeout(() => el.className = '', 4000);
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// --- EveryBusiness ---
+async function ebLoad() {
+  try {
+    const r = await fetch(API + '/api/everybusiness');
+    const d = await r.json();
+    document.getElementById('eb-content').value = d.content || '';
+    document.getElementById('eb-meta').textContent = d.file_size
+      ? `文件大小：${formatSize(d.file_size)}  最后更新：${d.last_modified || '未知'}`
+      : '当前文件为空';
+  } catch (e) { showMsg('加载失败：' + e.message, true); }
+}
+
+async function ebSubmit() {
+  const content = document.getElementById('eb-content').value.trim();
+  if (!content) { showMsg('请先粘贴文本内容', true); return; }
+  try {
+    const r = await fetch(API + '/api/everybusiness', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content})
+    });
+    const d = await r.json();
+    if (d.success) {
+      let msg = `文件已保存（${formatSize(d.file_size)}）`;
+      if (d.parsed_count !== undefined) msg += `，解析 ${d.parsed_count} 天数据，${d.parsed_metrics} 项指标`;
+      if (d.parse_error) msg += `（解析异常：${d.parse_error}）`;
+      showMsg(msg, false);
+      ebLoad();
+    } else {
+      showMsg('保存失败：' + d.error, true);
+    }
+  } catch (e) { showMsg('提交失败：' + e.message, true); }
+}
+
+function ebClear() { document.getElementById('eb-content').value = ''; }
+
+// --- Emergency ---
+async function emInit() {
+  try {
+    const r = await fetch(API + '/api/emergency/categories');
+    const cats = await r.json();
+    const sel = document.getElementById('em-category');
+    sel.innerHTML = '';
+    cats.forEach(c => { emCategories[c.doc_type] = c; });
+    for (const dt in emCategories) {
+      const c = emCategories[dt];
+      const opt = document.createElement('option');
+      opt.value = dt;
+      opt.textContent = `${c.name} (${c.file_count} 个文件)`;
+      sel.appendChild(opt);
+    }
+    emLoadFiles();
+  } catch (e) { showMsg('加载分类失败：' + e.message, true); }
+}
+
+async function emLoadFiles() {
+  const cat = document.getElementById('em-category').value;
+  if (!cat) return;
+  try {
+    const r = await fetch(API + '/api/emergency/files?doc_type=' + encodeURIComponent(cat));
+    const files = await r.json();
+    const tbody = document.getElementById('em-files');
+    tbody.innerHTML = '';
+    if (files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无文件</td></tr>';
+      return;
+    }
+    files.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${f.filename}</td><td>${formatSize(f.size)}</td><td>${f.last_modified || '-'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="emDelete('${cat}','${f.filename}')">删除</button></td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { showMsg('加载文件列表失败：' + e.message, true); }
+}
+
+async function emUpload() {
+  const cat = document.getElementById('em-category').value;
+  const fileInput = document.getElementById('em-file');
+  if (!fileInput.files[0]) { showMsg('请选择文件', true); return; }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('doc_type', cat);
+  try {
+    const r = await fetch(API + '/api/emergency/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.save && d.save.success) {
+      showMsg('上传成功，入库' + (d.ingest && d.ingest.success ? '成功' : '可能有异常'), !d.ingest || !d.ingest.success);
+      emInit();
+      fileInput.value = '';
+    } else {
+      showMsg('上传失败：' + (d.detail || JSON.stringify(d)), true);
+    }
+  } catch (e) { showMsg('上传失败：' + e.message, true); }
+}
+
+async function emDelete(cat, filename) {
+  if (!confirm('确认删除 ' + filename + '？')) return;
+  try {
+    const r = await fetch(API + '/api/emergency/files/' + encodeURIComponent(cat) + '/' + encodeURIComponent(filename), { method: 'DELETE' });
+    const d = await r.json();
+    if (d.delete && d.delete.success) {
+      showMsg('已删除', false);
+      emInit();
+    } else {
+      showMsg('删除失败：' + (d.detail || JSON.stringify(d)), true);
+    }
+  } catch (e) { showMsg('删除失败：' + e.message, true); }
+}
+
+// --- Probe ---
+async function probeLoad() {
+  try {
+    const r = await fetch(API + '/api/probe/status');
+    const d = await r.json();
+    let html = '<div style="display:flex;gap:24px;flex-wrap:wrap;">';
+    html += `<div><strong>定时任务：</strong>${d.scheduler_running ? '<span class="status-ok">运行中</span>' : '未启用'}</div>`;
+    html += `<div><strong>下次执行：</strong>${d.next_run || '-'}</div>`;
+    if (d.last_collection) {
+      const lc = d.last_collection;
+      html += `<div><strong>最近采集：</strong><span class="status-${lc.status === 'success' ? 'ok' : lc.status === 'partial' ? 'partial' : 'fail'}">${lc.status}</span> ${lc.new_files} 个新文件 ${lc.time}</div>`;
+    }
+    html += '</div>';
+    document.getElementById('probe-status').innerHTML = html;
+
+    const regDiv = document.getElementById('probe-regions');
+    regDiv.innerHTML = d.regions.map(r => `<span style="display:inline-block;margin:4px 8px 4px 0;padding:4px 10px;background:#f0f0f0;border-radius:4px;font-size:13px;">${r.city} (${r.name}): <strong>${r.file_count}</strong></span>`).join('');
+
+    const hr = await fetch(API + '/api/probe/history');
+    const history = await hr.json();
+    const tbody = document.getElementById('probe-history');
+    tbody.innerHTML = '';
+    history.reverse().forEach(h => {
+      const tr = document.createElement('tr');
+      const cls = h.status === 'success' ? 'status-ok' : h.status === 'partial' ? 'status-partial' : 'status-fail';
+      tr.innerHTML = `<td>${h.time}</td><td class="${cls}">${h.status}</td><td>${h.new_files}</td><td>${h.errors && h.errors.length ? h.errors.join(', ') : '-'}</td>`;
+      tbody.appendChild(tr);
+    });
+    if (history.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无采集记录</td></tr>';
+  } catch (e) { showMsg('加载探测状态失败：' + e.message, true); }
+}
+
+async function probeCollect() {
+  showMsg('正在采集，请稍候...', false);
+  try {
+    const r = await fetch(API + '/api/probe/collect', { method: 'POST' });
+    const d = await r.json();
+    showMsg(`采集完成：${d.status}，${d.new_files} 个新文件`, d.status === 'failed');
+    probeLoad();
+  } catch (e) { showMsg('采集失败：' + e.message, true); }
+}
+
+ebLoad();
+</script>
+</body>
+</html>

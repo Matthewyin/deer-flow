@@ -73,6 +73,7 @@ services:
       - frontend
       - gateway
       - langgraph
+      - data-manager
     networks:
       - deer-flow-dev
     restart: unless-stopped
@@ -232,6 +233,36 @@ services:
     extra_hosts:
       # For Linux: map host.docker.internal to host gateway
       - "host.docker.internal:host-gateway"
+    networks:
+      - deer-flow-dev
+    restart: unless-stopped
+
+  # Data Manager - file upload, data management, probe collection
+  data-manager:
+    build:
+      context: ./data-manager
+      dockerfile: Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+    container_name: deer-flow-data-manager
+    volumes:
+      - ../docs:/app/docs:rw
+      - ../docker/volumes/deer-flow-data:/app/.deer-flow:rw
+      - ../mcp-servers:/app/mcp-servers:ro
+      - type: bind
+        source: ${DEER_FLOW_ROOT:?DEER_FLOW_ROOT must be set}/.ssh
+        target: /root/.ssh
+        read_only: true
+        bind:
+          create_host_path: true
+    working_dir: /app
+    environment:
+      - BUSINESS_DB_PATH=/app/.deer-flow/db/business_baseline.db
+      - PROBE_DB_PATH=/app/.deer-flow/db/remote_probe.db
+      - DEER_FLOW_HOME=/app/.deer-flow
+      - PROBE_SCHEDULER_ENABLED=${PROBE_SCHEDULER_ENABLED:-false}
+    env_file:
+      - ../.env
     networks:
       - deer-flow-dev
     restart: unless-stopped

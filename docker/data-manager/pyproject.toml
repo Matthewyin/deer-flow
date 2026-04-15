@@ -1,0 +1,15 @@
+[project]
+name = "deer-flow-data-manager"
+version = "0.1.0"
+description = "DeerFlow data management service - everybusiness, emergency plans, probe collection"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "starlette>=0.40.0,<1.0",
+    "uvicorn[standard]>=0.34.0",
+    "python-multipart>=0.0.18",
+    "paramiko>=3.5.0",
+    "apscheduler>=3.11.0",
+    "python-docx>=1.1.0",
+    "jinja2>=3.1.0",
+]
