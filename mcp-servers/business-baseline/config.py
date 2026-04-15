@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 @dataclass
 class SQLiteConfig:
-    db_path: str = ".deer-flow/db/business_baseline.db"
+    db_path: str = "/app/backend/.deer-flow/db/business_baseline.db"
 
 
 @dataclass
@@ -24,7 +24,8 @@ class ServerConfig:
         if self.sqlite is None:
             self.sqlite = SQLiteConfig(
                 db_path=os.getenv(
-                    "BUSINESS_DB_PATH", ".deer-flow/db/business_baseline.db"
+                    "BUSINESS_DB_PATH",
+                    "/app/backend/.deer-flow/db/business_baseline.db",
                 ),
             )
         if self.file is None:
