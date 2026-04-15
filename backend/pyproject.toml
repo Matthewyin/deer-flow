@@ -17,12 +17,17 @@ dependencies = [
     "langgraph-sdk>=0.1.51",
     "markdown-to-mrkdwn>=0.3.1",
     "wecom-aibot-python-sdk>=0.1.6",
+    # MCP server runtime dependencies (required for remote-probe, business-baseline etc.)
+    "fastmcp>=2.0",
+    "paramiko>=3.0",
+    "apscheduler>=3.10",
 ]
 
 [project.optional-dependencies]
 # Runtime dependencies for MCP servers (remote-probe, network-ops, ops-knowledge)
 # Pre-installed in dev-full Docker image to avoid per-startup installation
 mcp-runtime = [
+    "fastmcp>=2.0",
     "paramiko>=3.0",
     "apscheduler>=3.10",
 ]

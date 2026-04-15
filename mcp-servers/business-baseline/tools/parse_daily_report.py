@@ -37,13 +37,13 @@ def _extract_report_date(block_text: str) -> Optional[str]:
         r"(\d{4})年(\d+)月(\d+)日\d+时至\d{4}年(\d+)月(\d+)日\d+时", block_text
     )
     if period_m:
-        return f"{period_m.group(1)}-{int(period_m.group(4)):02d}-{int(period_m.group(5)):02d}"
+        return f"{period_m.group(1)}-{int(period_m.group(2)):02d}-{int(period_m.group(3)):02d}"
     period_m2 = re.search(r"(\d+)月(\d+)日\d+时至(\d+)月(\d+)日\d+时", block_text)
     if period_m2:
-        end_month = int(period_m2.group(3))
-        end_day = int(period_m2.group(4))
+        start_month = int(period_m2.group(1))
+        start_day = int(period_m2.group(2))
         year = _infer_year_from_context()
-        return f"{year}-{end_month:02d}-{end_day:02d}"
+        return f"{year}-{start_month:02d}-{start_day:02d}"
     return None
 
 
