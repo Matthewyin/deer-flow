@@ -1,7 +1,7 @@
 # Data Manager 服务设计
 
 > 日期：2026-04-15
-> 状态：**DRAFT** — 待审核
+> 状态：**IMPLEMENTED** — 已实现并验证
 > 范围：新增独立容器 data-manager，提供 everybusiness 文本粘贴、应急预案文件管理、ECS 探测定时采集三大功能
 
 ---
@@ -137,7 +137,7 @@ docker/data-manager/
 │   │   ├── __init__.py
 │   │   ├── everybusiness_service.py  # 文件写入 + 触发解析
 │   │   ├── emergency_service.py      # 文件 CRUD + 触发入库
-│   │   └── probe_service.py          # SSH 采集（复用 remote-probe 代码）+ 状态查询
+│   │   └── probe_service.py          # SSH 采集 + 解析入库 + 状态查询
 │   ├── templates/
 │   │   └── index.html        # 单页应用（3 个功能区）
 │   └── static/               # CSS/JS（如需要）
@@ -281,46 +281,59 @@ sequenceDiagram
     participant U as 用户
     participant W as Web 页面
     participant API as /api/probe
-    participant Sched as APScheduler
     participant SSH as paramiko SSH
     participant ECS as ECS 节点
+    participant DB as SQLite probe_metrics
 
-    Note over Sched: 每天 11:00 / 17:00 自动执行
-
-    Sched->>SSH: 执行采集任务
-    SSH->>ECS: SSH 到 6 个节点
-    ECS-->>SSH: 返回 prob_*.tgz + domain_based/*.json
-    SSH->>W: 保存到 .deer-flow/probe/raw/{region}/
-
-    U->>W: 打开 probe 面板
-    W->>API: GET /api/probe/status
-    API-->>W: 返回最近采集记录、状态、文件数
+    Note over API: 异步：采集 + 自动解析入库
 
     U->>W: 点击"立即采集"
     W->>API: POST /api/probe/collect
-    API->>SSH: 立即执行采集
-    SSH-->>API: 返回采集结果
-    API-->>W: {success: true, new_files: 3}
+    API-->>W: {status: "started"}
+    API->>SSH: 后台 SSH 到 6 个节点
+    ECS-->>SSH: 返回 prob_*.tgz + domain_based/*.json
+    SSH->>W: 保存到 .deer-flow/probe/raw/{region}/
+    Note over API: 采集完成后自动触发
+    API->>DB: parse_and_ingest: 扫描 JSON → 提取指标 → INSERT
+    DB-->>API: 1274 条入库
+
+    U->>W: 点击"手动解析入库"
+    W->>API: POST /api/probe/parse-ingest
+    API-->>W: {status: "started"}
+    API->>DB: 后台扫描 + 解析 + 入库（跳过已入库）
+
+    U->>W: 打开 probe 面板
+    W->>API: GET /api/probe/status
+    API-->>W: 返回最近采集/入库记录、状态、文件数
 ```
 
 #### API 设计
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/probe/status` | 获取采集状态（最近记录、定时任务状态） |
-| POST | `/api/probe/collect` | 手动触发一次采集 |
+| GET | `/api/probe/status` | 获取采集状态（最近采集/入库记录、定时任务状态） |
+| POST | `/api/probe/collect` | 手动触发采集（完成后自动解析入库） |
 | GET | `/api/probe/history` | 获取采集历史记录 |
+| POST | `/api/probe/parse-ingest` | 手动触发解析入库（JSON → probe_metrics） |
+| GET | `/api/probe/ingest-history` | 获取入库历史记录 |
 
 **状态响应：**
 ```json
 {
-  "scheduler_running": true,
-  "next_run": "2026-04-15T17:00:00+08:00",
+  "scheduler_running": false,
+  "next_run": null,
   "last_collection": {
     "time": "2026-04-15T11:00:23+08:00",
     "status": "success",
-    "new_files": 3,
-    "total_files": 47
+    "new_files": 252,
+    "errors": []
+  },
+  "last_ingest": {
+    "time": "2026-04-15T14:58:19+08:00",
+    "total_parsed": 1274,
+    "total_inserted": 1274,
+    "total_skipped": 0,
+    "errors": []
   },
   "regions": [
     {"name": "bj", "file_count": 15, "last_update": "2026-04-15"},

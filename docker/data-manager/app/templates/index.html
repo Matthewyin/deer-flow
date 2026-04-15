@@ -104,10 +104,25 @@ th { color: #888; font-weight: 600; }
       </div>
     </div>
     <div class="card">
+      <h2>解析入库</h2>
+      <div id="probe-ingest-status" style="margin-bottom:12px;"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="probeIngest()">手动解析入库</button>
+      </div>
+      <div class="info">将已采集的 JSON 文件解析后写入 probe_metrics 表。采集完成后会自动触发，也可手动触发。已入库的文件会跳过。</div>
+    </div>
+    <div class="card">
       <h2>采集历史</h2>
       <table>
         <thead><tr><th>时间</th><th>状态</th><th>新文件</th><th>错误</th></tr></thead>
         <tbody id="probe-history"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>入库历史</h2>
+      <table>
+        <thead><tr><th>时间</th><th>解析</th><th>入库</th><th>跳过</th><th>错误</th></tr></thead>
+        <tbody id="probe-ingest-history"></tbody>
       </table>
     </div>
     <div class="card">
@@ -271,6 +286,19 @@ async function probeLoad() {
     html += '</div>';
     document.getElementById('probe-status').innerHTML = html;
 
+    // Ingest status
+    let ingestHtml = '';
+    if (d.last_ingest) {
+      const li = d.last_ingest;
+      const statusClass = li.errors && li.errors.length > 0 ? 'partial' : 'ok';
+      ingestHtml = `<div style="display:flex;gap:24px;flex-wrap:wrap;">`;
+      ingestHtml += `<div><strong>最近入库：</strong><span class="status-${statusClass}">${li.total_inserted} 条入库</span> ${li.total_parsed} 解析 ${li.total_skipped} 跳过 ${li.time}</div>`;
+      ingestHtml += '</div>';
+    } else {
+      ingestHtml = '<div style="color:#888;">暂无入库记录</div>';
+    }
+    document.getElementById('probe-ingest-status').innerHTML = ingestHtml;
+
     const regDiv = document.getElementById('probe-regions');
     regDiv.innerHTML = d.regions.map(r => `<span style="display:inline-block;margin:4px 8px 4px 0;padding:4px 10px;background:#f0f0f0;border-radius:4px;font-size:13px;">${r.city} (${r.name}): <strong>${r.file_count}</strong></span>`).join('');
 
@@ -285,6 +313,18 @@ async function probeLoad() {
       tbody.appendChild(tr);
     });
     if (history.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无采集记录</td></tr>';
+
+    // Ingest history
+    const ihr = await fetch(API + '/api/probe/ingest-history');
+    const ingestHistory = await ihr.json();
+    const itbody = document.getElementById('probe-ingest-history');
+    itbody.innerHTML = '';
+    ingestHistory.reverse().forEach(h => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${h.time}</td><td>${h.total_parsed}</td><td class="status-ok">${h.total_inserted}</td><td>${h.total_skipped}</td><td>${h.errors && h.errors.length ? h.errors.length + ' 个' : '-'}</td>`;
+      itbody.appendChild(tr);
+    });
+    if (ingestHistory.length === 0) itbody.innerHTML = '<tr><td colspan="5" style="color:#888;">暂无入库记录</td></tr>';
   } catch (e) { showMsg('加载探测状态失败：' + e.message, true); }
 }
 
@@ -293,9 +333,27 @@ async function probeCollect() {
   try {
     const r = await fetch(API + '/api/probe/collect', { method: 'POST' });
     const d = await r.json();
-    showMsg(`采集完成：${d.status}，${d.new_files} 个新文件`, d.status === 'failed');
-    probeLoad();
+    if (d.status === 'already_running') {
+      showMsg('采集正在进行中', true);
+    } else {
+      showMsg('采集已启动，完成后将自动解析入库', false);
+    }
+    setTimeout(probeLoad, 3000);
   } catch (e) { showMsg('采集失败：' + e.message, true); }
+}
+
+async function probeIngest() {
+  showMsg('正在解析入库，请稍候...', false);
+  try {
+    const r = await fetch(API + '/api/probe/parse-ingest', { method: 'POST' });
+    const d = await r.json();
+    if (d.status === 'already_running') {
+      showMsg('解析入库正在进行中', true);
+    } else {
+      showMsg('解析入库已启动，请稍后刷新查看结果', false);
+    }
+    setTimeout(probeLoad, 3000);
+  } catch (e) { showMsg('解析入库失败：' + e.message, true); }
 }
 
 ebLoad();
