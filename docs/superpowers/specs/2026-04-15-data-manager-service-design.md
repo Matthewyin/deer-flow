@@ -1,8 +1,9 @@
 # Data Manager 服务设计
 
-> 日期：2026-04-15
+> 日期：2026-04-15（更新：2026-04-16）
 > 状态：**IMPLEMENTED** — 已实现并验证
 > 范围：新增独立容器 data-manager，提供 everybusiness 文本粘贴、应急预案文件管理、ECS 探测定时采集三大功能
+> 更新记录：2026-04-16 — 新增操作状态轮询机制 + 错误码体系 + probe agent LLM spinning 修复
 
 ---
 
@@ -313,9 +314,94 @@ sequenceDiagram
 |------|------|------|
 | GET | `/api/probe/status` | 获取采集状态（最近采集/入库记录、定时任务状态） |
 | POST | `/api/probe/collect` | 手动触发采集（完成后自动解析入库） |
+| **GET** | **`/api/probe/collect-result`** | **轮询采集结果（状态 + 错误码）** |
 | GET | `/api/probe/history` | 获取采集历史记录 |
 | POST | `/api/probe/parse-ingest` | 手动触发解析入库（JSON → probe_metrics） |
 | GET | `/api/probe/ingest-history` | 获取入库历史记录 |
+| **GET** | **`/api/probe/ingest-result`** | **轮询入库结果（状态 + 错误码）** |
+
+#### 操作状态轮询机制（2026-04-16 新增）
+
+所有耗时操作（采集、入库）采用 **异步 + 轮询** 模式，前端在触发操作后以 2 秒间隔轮询结果接口，直到收到最终状态（success / failed）或超时（4 分钟）。
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant W as Web 页面
+    participant API as /api/probe
+    participant BG as 后台线程
+
+    U->>W: 点击"立即采集"
+    W->>API: POST /api/probe/collect
+    API-->>W: {status: "started"}
+    API->>BG: 启动后台采集线程
+
+    loop 每 2 秒轮询（最多 120 次）
+        W->>API: GET /api/probe/collect-result
+        alt 采集中
+            API-->>W: {status: "running", message: "采集中"}
+        else 采集完成
+            API-->>W: {status: "success", message: "采集完成", regions: 6, files: 42}
+        else 采集失败
+            API-->>W: {status: "failed", message: "...", error_code: "COLLECT_ALL_FAILED"}
+        end
+    end
+```
+
+**轮询结果响应格式：**
+
+```json
+{
+  "status": "success | failed | running | idle",
+  "message": "操作结果描述",
+  "error_code": "COLLECT_ALL_FAILED",
+  "error_details": "hhht: SSH timeout, wh: connection refused, ...",
+  "regions": 6,
+  "files": 42
+}
+```
+
+#### 错误码体系
+
+**探测数据模块错误码：**
+
+| 错误码 | 含义 |
+|--------|------|
+| `COLLECT_ALREADY_RUNNING` | 采集任务已在执行中 |
+| `COLLECT_ALL_FAILED` | 所有区域采集失败 |
+| `COLLECT_PARTIAL_FAILURE` | 部分区域采集失败 |
+| `COLLECT_EXCEPTION` | 采集过程异常 |
+| `COLLECT_REQUEST_ERROR` | 请求参数错误 |
+| `INGEST_ALREADY_RUNNING` | 入库任务已在执行中 |
+| `INGEST_FAILED` | 入库失败 |
+| `INGEST_PARTIAL_ERROR` | 部分数据入库失败 |
+| `INGEST_EXCEPTION` | 入库过程异常 |
+| `INGEST_REQUEST_ERROR` | 请求参数错误 |
+| `TIMEOUT` | 前端轮询超时（4 分钟） |
+| `POLL_ERROR` | 轮询请求异常 |
+| `PROBE_LOAD_ERROR` | 数据加载异常 |
+
+**每日运营模块错误码（EB_ 前缀）：**
+
+| 错误码 | 含义 |
+|--------|------|
+| `EB_EMPTY_INPUT` | 输入内容为空 |
+| `EB_SAVE_ERROR` | 文件保存失败 |
+| `EB_PARSE_ERROR` | 解析失败 |
+| `EB_NETWORK_ERROR` | 网络请求失败 |
+| `EB_LOAD_ERROR` | 数据加载失败 |
+
+**应急预案模块错误码（EM_ 前缀）：**
+
+| 错误码 | 含义 |
+|--------|------|
+| `EM_NO_FILE` | 未选择文件 |
+| `EM_UPLOAD_ERROR` | 文件上传失败 |
+| `EM_INGEST_ERROR` | 入库失败 |
+| `EM_DELETE_ERROR` | 删除失败 |
+| `EM_LOAD_ERROR` | 数据加载失败 |
+| `EM_FILES_ERROR` | 文件列表获取失败 |
+| `EM_NETWORK_ERROR` | 网络请求失败 |
 
 **状态响应：**
 ```json
@@ -531,3 +617,71 @@ dependencies = [
 - ❌ 不修改 langgraph/gateway 的 Dockerfile 或配置
 - ❌ 不引入额外数据库（使用文件系统 + SQLite）
 - ❌ 前端不使用 React/Vue（纯 HTML + Vanilla JS，保持简单）
+
+---
+
+## 10. Probe Agent LLM Spinning 修复（2026-04-16）
+
+### 问题描述
+
+使用 deer-flow 的 probe agent 时，LLM 会无限思考不响应（spinning）。
+
+### 根因分析
+
+三个叠加问题：
+
+1. **`run_scheduled_task` 同步阻塞**（致命）— 该函数同步执行 5 步 SSH 流水线（collect→parse→compare→report→update_baseline），耗时 2-5 分钟，超过 MCP stdio 传输超时
+2. **`start_scheduler()` 模块级执行**（高危）— 在 `server.py` 第 26 行模块导入时启动调度器，MCP 客户端初始化即触发
+3. **返回数据量过大**（中等）— `run_scheduled_task` 返回 6 个区域的完整数据，可能超出 MCP 消息体限制
+
+### 修复方案
+
+```mermaid
+graph LR
+    subgraph Before（修复前）
+        A1[LLM 调用 run_scheduled_task] -->|同步阻塞 2-5 分钟| A2[MCP stdio 超时]
+        A2 --> A3[LLM spinning]
+    end
+
+    subgraph After（修复后）
+        B1[LLM 调用 run_scheduled_task] -->|立即返回 task_id| B2[后台 daemon 线程执行]
+        B2 --> B3[LLM 调用 get_pipeline_status]
+        B3 -->|返回精简摘要| B4[正常响应]
+    end
+```
+
+#### 修改文件 1：`mcp-servers/remote-probe/server.py`
+
+```python
+# 修复前：模块级执行
+start_scheduler()  # ← MCP 客户端初始化即触发
+
+# 修复后：移到 __main__ 守卫内
+if __name__ == "__main__":
+    start_scheduler()
+```
+
+#### 修改文件 2：`mcp-servers/remote-probe/tools/scheduler.py`
+
+三个关键改动：
+
+1. **`run_scheduled_task` 改为异步**：立即返回 `task_id`，5 步流水线在 daemon 线程中后台执行
+2. **新增 `get_pipeline_status` 工具**：LLM 可用 task_id 查询任务进度和结果摘要
+3. **新增 `_summarize_step()` 辅助函数**：将每步结果精简为核心指标，避免超出 MCP 消息体限制
+
+```python
+@mcp_server.tool()
+def run_scheduled_task() -> dict:
+    """启动探测流水线（异步，立即返回 task_id）"""
+    task_id = f"pipeline_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    thread = Thread(target=_run_pipeline_background, args=(task_id,), daemon=True)
+    thread.start()
+    return {"task_id": task_id, "status": "started", "message": "流水线已启动，使用 get_pipeline_status 查询进度"}
+
+@mcp_server.tool()
+def get_pipeline_status(task_id: str) -> dict:
+    """查询探测流水线执行状态"""
+    if task_id not in _pipeline_results:
+        return {"status": "not_found", "message": f"任务 {task_id} 不存在"}
+    return _pipeline_results[task_id]
+```

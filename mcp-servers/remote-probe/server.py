@@ -23,7 +23,6 @@ register_scheduler(mcp)
 
 from tools.scheduler import start_scheduler
 
-start_scheduler()
-
 if __name__ == "__main__":
+    start_scheduler()
     mcp.run()

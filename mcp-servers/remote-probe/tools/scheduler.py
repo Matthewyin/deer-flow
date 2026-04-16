@@ -1,5 +1,7 @@
 import json
 import logging
+import threading
+import uuid
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,13 +19,115 @@ logger = logging.getLogger("remote_probe.scheduler")
 
 _scheduler: BackgroundScheduler | None = None
 
+_pipeline_tasks: dict[str, dict] = {}
+_pipeline_lock = threading.Lock()
+
+
+def _execute_pipeline_background(
+    task_id: str, hours: int, window_size: int, weight_recent: float
+) -> None:
+    """Run the full pipeline in a background thread, updating _pipeline_tasks as it progresses."""
+    started = datetime.now()
+    logger.info(f"[pipeline:{task_id}] started at {started.isoformat()}")
+
+    task_state = {
+        "task_id": task_id,
+        "status": "running",
+        "started_at": started.isoformat(),
+        "current_step": "init",
+        "steps": {},
+        "error": None,
+    }
+
+    def _update(state: dict) -> None:
+        with _pipeline_lock:
+            _pipeline_tasks[task_id] = state
+
+    _update(task_state)
+
+    try:
+        # Step 1: Collect
+        task_state["current_step"] = "collect"
+        _update(task_state)
+        collect_result = collect_probe_data_impl()
+        task_state["steps"]["collect"] = collect_result
+        _update(task_state)
+        logger.info(
+            f"[pipeline:{task_id}] collect done: {json.dumps(collect_result, default=str)}"
+        )
+
+        # Step 2: Parse
+        task_state["current_step"] = "parse"
+        _update(task_state)
+        parse_result = parse_probe_results_impl()
+        task_state["steps"]["parse"] = parse_result
+        _update(task_state)
+        logger.info(
+            f"[pipeline:{task_id}] parse done: {json.dumps(parse_result, default=str)}"
+        )
+
+        # Step 3: Compare
+        task_state["current_step"] = "compare"
+        _update(task_state)
+        compare_result = compare_with_baseline_impl(hours=hours)
+        task_state["steps"]["compare"] = compare_result
+        _update(task_state)
+        logger.info(
+            f"[pipeline:{task_id}] compare done for {len(compare_result)} pairs"
+        )
+
+        # Step 4: Generate report
+        task_state["current_step"] = "report"
+        _update(task_state)
+        report = generate_probe_report_impl(report_type="daily", hours=hours)
+        task_state["steps"]["report"] = {"length": len(report), "saved": True}
+        _update(task_state)
+        logger.info(f"[pipeline:{task_id}] report generated ({len(report)} chars)")
+
+        # Step 5: Update baseline for each region×domain pair
+        task_state["current_step"] = "update_baseline"
+        _update(task_state)
+        cfg = get_config()
+        init_db(cfg.sqlite.db_path)
+        conn = get_connection(cfg.sqlite.db_path)
+        pairs = get_all_region_domains(conn)
+
+        update_results = {}
+        for region, domain in pairs:
+            bl = get_current_baseline(conn, region, domain)
+            if bl:
+                upd = update_baseline_impl(region, domain, window_size, weight_recent)
+                update_results[f"{region}/{domain}"] = upd
+                logger.info(
+                    f"[pipeline:{task_id}] baseline updated for {region}/{domain}: {upd.get('changed_fields')}"
+                )
+
+        conn.close()
+        task_state["steps"]["update_baseline"] = update_results
+
+        finished = datetime.now()
+        duration = (finished - started).total_seconds()
+        task_state["status"] = "completed"
+        task_state["current_step"] = "done"
+        task_state["finished_at"] = finished.isoformat()
+        task_state["duration_seconds"] = round(duration, 2)
+        _update(task_state)
+        logger.info(f"[pipeline:{task_id}] finished in {duration:.1f}s")
+
+    except Exception as e:
+        logger.error(f"[pipeline:{task_id}] failed: {e}", exc_info=True)
+        task_state["status"] = "failed"
+        task_state["error"] = str(e)
+        task_state["finished_at"] = datetime.now().isoformat()
+        _update(task_state)
+
 
 def run_probe_pipeline(
     hours: int = 6,
     window_size: int = 30,
     weight_recent: float = 0.7,
 ) -> dict:
-    """Execute the full probe pipeline: collect → parse → compare → report → update baseline."""
+    """Execute the full probe pipeline synchronously (used by scheduler cron jobs)."""
     started = datetime.now()
     logger.info(f"[pipeline] started at {started.isoformat()}")
 
@@ -78,7 +182,11 @@ def run_probe_pipeline(
 
 
 def start_scheduler() -> BackgroundScheduler:
-    """Start the background scheduler with cron jobs from config."""
+    """Start the background scheduler with cron jobs from config.
+
+    Only starts if scheduler.enabled is True in config.
+    Safe to call multiple times — returns existing scheduler if already running.
+    """
     global _scheduler
     if _scheduler is not None and _scheduler.running:
         return _scheduler
@@ -133,8 +241,8 @@ def register(mcp):
         window_size: int = 30,
         weight_recent: float = 0.7,
     ) -> dict:
-        """手动触发完整的探测流水线：采集→解析→对比→报告→更新基线。
-        执行与定时调度相同的逻辑，用于按需执行或测试。
+        """异步触发完整的探测流水线：采集→解析→对比→报告→更新基线。
+        立即返回任务ID，流水线在后台执行。使用 get_pipeline_status 查询执行进度和结果。
 
         Args:
             hours: 回溯小时数，默认6小时
@@ -142,11 +250,88 @@ def register(mcp):
             weight_recent: 近期数据权重，默认0.7
 
         Returns:
-            dict: 各步骤执行结果和耗时
+            dict: 包含 task_id 和状态信息，通过 get_pipeline_status 查询完整结果
         """
-        return run_probe_pipeline(
-            hours=hours, window_size=window_size, weight_recent=weight_recent
+        task_id = f"pipeline_{uuid.uuid4().hex[:8]}"
+
+        with _pipeline_lock:
+            _pipeline_tasks[task_id] = {
+                "task_id": task_id,
+                "status": "queued",
+                "started_at": datetime.now().isoformat(),
+                "current_step": "pending",
+                "steps": {},
+                "error": None,
+            }
+
+        thread = threading.Thread(
+            target=_execute_pipeline_background,
+            args=(task_id, hours, window_size, weight_recent),
+            name=f"pipeline-{task_id}",
+            daemon=True,
         )
+        thread.start()
+
+        return {
+            "task_id": task_id,
+            "status": "queued",
+            "message": "流水线已在后台启动，使用 get_pipeline_status 查询进度",
+        }
+
+    @mcp.tool()
+    def get_pipeline_status(task_id: str = "") -> dict:
+        """查询探测流水线的执行状态和结果。
+
+        Args:
+            task_id: 任务ID（由 run_scheduled_task 返回）。为空则返回所有任务列表。
+
+        Returns:
+            dict: 任务状态信息，包含各步骤执行进度或完整结果
+        """
+        with _pipeline_lock:
+            if not task_id:
+                return {
+                    "tasks": [
+                        {
+                            "task_id": tid,
+                            "status": t.get("status"),
+                            "current_step": t.get("current_step"),
+                            "started_at": t.get("started_at"),
+                            "duration_seconds": t.get("duration_seconds"),
+                        }
+                        for tid, t in _pipeline_tasks.items()
+                    ]
+                }
+
+            task = _pipeline_tasks.get(task_id)
+            if not task:
+                return {"error": f"任务 {task_id} 不存在"}
+
+            if task["status"] == "running":
+                return {
+                    "task_id": task["task_id"],
+                    "status": task["status"],
+                    "current_step": task["current_step"],
+                    "started_at": task["started_at"],
+                    "steps_completed": list(task["steps"].keys()),
+                    "message": f"正在执行: {task['current_step']}",
+                }
+
+            result = {
+                "task_id": task["task_id"],
+                "status": task["status"],
+                "started_at": task["started_at"],
+                "finished_at": task.get("finished_at"),
+                "duration_seconds": task.get("duration_seconds"),
+            }
+            if task["status"] == "failed":
+                result["error"] = task.get("error")
+            else:
+                result["steps_summary"] = {
+                    name: _summarize_step(name, data)
+                    for name, data in task.get("steps", {}).items()
+                }
+            return result
 
     @mcp.tool()
     def get_scheduler_status() -> dict:
@@ -183,3 +368,42 @@ def register(mcp):
             "schedule_times": sched_cfg.schedule_times,
             "jobs": jobs,
         }
+
+
+def _summarize_step(name: str, data: any) -> dict:
+    """Create a compact summary of a pipeline step result to keep MCP responses small."""
+    if not isinstance(data, dict):
+        return {"type": type(data).__name__}
+
+    summary = {}
+    if name == "collect":
+        summary["regions"] = list(data.keys())
+        summary["total_files"] = sum(
+            v.get("files_downloaded", 0) if isinstance(v, dict) else 0
+            for v in data.values()
+        )
+    elif name == "parse":
+        summary["inserted"] = data.get("inserted")
+        summary["skipped"] = data.get("skipped")
+        summary["errors"] = data.get("errors")
+    elif name == "compare":
+        summary["pairs_compared"] = len(data)
+        summary["alerts"] = {
+            k: v.get("alerts", [])
+            for k, v in data.items()
+            if isinstance(v, dict)
+            and v.get("alerts")
+            and any("CRITICAL" in a or "WARNING" in a for a in v.get("alerts", []))
+        }
+    elif name == "report":
+        summary["length"] = data.get("length")
+        summary["saved"] = data.get("saved")
+    elif name == "update_baseline":
+        summary["regions_updated"] = list(data.keys())
+        summary["changed_fields"] = {
+            k: v.get("changed_fields") for k, v in data.items() if isinstance(v, dict)
+        }
+    else:
+        summary["keys"] = list(data.keys())[:10]
+
+    return summary

@@ -54,6 +54,12 @@ def save_collection_log(entry: dict):
     _save_log(logs)
 
 
+def save_ingest_log(entry: dict):
+    logs = _load_ingest_log()
+    logs.append(entry)
+    _save_ingest_log(logs)
+
+
 def collect_probe_data(regions=None) -> dict:
     from collect_probe_data import collect_probe_data_impl
 

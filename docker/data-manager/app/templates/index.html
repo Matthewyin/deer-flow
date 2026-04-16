@@ -137,7 +137,6 @@ th { color: #888; font-weight: 600; }
 const API = '/data-manager';
 let emCategories = {};
 
-// --- Tabs ---
 document.querySelectorAll('.tab').forEach(tab => {
   tab.onclick = () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -149,11 +148,13 @@ document.querySelectorAll('.tab').forEach(tab => {
   };
 });
 
-function showMsg(text, isError) {
+function showMsg(text, isError, errorCode) {
   const el = document.getElementById('message');
-  el.textContent = text;
+  let html = text;
+  if (isError && errorCode) html += ` <span style="opacity:0.7;font-size:12px;">[${errorCode}]</span>`;
+  el.innerHTML = html;
   el.className = isError ? 'msg-error' : 'msg-success';
-  setTimeout(() => el.className = '', 4000);
+  setTimeout(() => el.className = '', 6000);
 }
 
 function formatSize(bytes) {
@@ -162,7 +163,33 @@ function formatSize(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-// --- EveryBusiness ---
+function pollResult(url, onSuccess, onFail) {
+  let attempts = 0;
+  const maxAttempts = 120;
+  const interval = setInterval(async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(interval);
+      showMsg('操作超时，请查看历史记录确认结果', true, 'TIMEOUT');
+      return;
+    }
+    try {
+      const r = await fetch(API + url);
+      const d = await r.json();
+      if (d.status === 'running') return;
+      clearInterval(interval);
+      if (d.status === 'success') {
+        onSuccess(d);
+      } else {
+        onFail(d);
+      }
+    } catch (e) {
+      clearInterval(interval);
+      showMsg('查询结果失败：' + e.message, true, 'POLL_ERROR');
+    }
+  }, 2000);
+}
+
 async function ebLoad() {
   try {
     const r = await fetch(API + '/api/everybusiness');
@@ -171,12 +198,15 @@ async function ebLoad() {
     document.getElementById('eb-meta').textContent = d.file_size
       ? `文件大小：${formatSize(d.file_size)}  最后更新：${d.last_modified || '未知'}`
       : '当前文件为空';
-  } catch (e) { showMsg('加载失败：' + e.message, true); }
+  } catch (e) { showMsg('加载失败：' + e.message, true, 'EB_LOAD_ERROR'); }
 }
 
 async function ebSubmit() {
   const content = document.getElementById('eb-content').value.trim();
-  if (!content) { showMsg('请先粘贴文本内容', true); return; }
+  if (!content) { showMsg('请先粘贴文本内容', true, 'EB_EMPTY_INPUT'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '提交中...';
   try {
     const r = await fetch(API + '/api/everybusiness', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -184,20 +214,28 @@ async function ebSubmit() {
     });
     const d = await r.json();
     if (d.success) {
-      let msg = `文件已保存（${formatSize(d.file_size)}）`;
+      let msg = '✅ 文件已保存';
       if (d.parsed_count !== undefined) msg += `，解析 ${d.parsed_count} 天数据，${d.parsed_metrics} 项指标`;
-      if (d.parse_error) msg += `（解析异常：${d.parse_error}）`;
-      showMsg(msg, false);
+      if (d.parse_error) {
+        msg += `（解析异常：${d.parse_error}）`;
+        showMsg(msg, true, 'EB_PARSE_ERROR');
+      } else {
+        showMsg(msg, false);
+      }
       ebLoad();
     } else {
-      showMsg('保存失败：' + d.error, true);
+      showMsg('❌ 保存失败：' + d.error, true, 'EB_SAVE_ERROR');
     }
-  } catch (e) { showMsg('提交失败：' + e.message, true); }
+  } catch (e) {
+    showMsg('❌ 提交失败：' + e.message, true, 'EB_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '提交并解析';
+  }
 }
 
 function ebClear() { document.getElementById('eb-content').value = ''; }
 
-// --- Emergency ---
 async function emInit() {
   try {
     const r = await fetch(API + '/api/emergency/categories');
@@ -213,7 +251,7 @@ async function emInit() {
       sel.appendChild(opt);
     }
     emLoadFiles();
-  } catch (e) { showMsg('加载分类失败：' + e.message, true); }
+  } catch (e) { showMsg('加载分类失败：' + e.message, true, 'EM_LOAD_ERROR'); }
 }
 
 async function emLoadFiles() {
@@ -234,13 +272,16 @@ async function emLoadFiles() {
         <td><button class="btn btn-danger btn-sm" onclick="emDelete('${cat}','${f.filename}')">删除</button></td>`;
       tbody.appendChild(tr);
     });
-  } catch (e) { showMsg('加载文件列表失败：' + e.message, true); }
+  } catch (e) { showMsg('加载文件列表失败：' + e.message, true, 'EM_FILES_ERROR'); }
 }
 
 async function emUpload() {
   const cat = document.getElementById('em-category').value;
   const fileInput = document.getElementById('em-file');
-  if (!fileInput.files[0]) { showMsg('请选择文件', true); return; }
+  if (!fileInput.files[0]) { showMsg('请选择文件', true, 'EM_NO_FILE'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '上传中...';
   const fd = new FormData();
   fd.append('file', fileInput.files[0]);
   fd.append('doc_type', cat);
@@ -248,13 +289,22 @@ async function emUpload() {
     const r = await fetch(API + '/api/emergency/upload', { method: 'POST', body: fd });
     const d = await r.json();
     if (d.save && d.save.success) {
-      showMsg('上传成功，入库' + (d.ingest && d.ingest.success ? '成功' : '可能有异常'), !d.ingest || !d.ingest.success);
+      if (d.ingest && d.ingest.success) {
+        showMsg('✅ 上传成功，入库成功', false);
+      } else {
+        showMsg('⚠️ 上传成功，但入库失败：' + (d.ingest ? d.ingest.error : '未知错误'), true, 'EM_INGEST_ERROR');
+      }
       emInit();
       fileInput.value = '';
     } else {
-      showMsg('上传失败：' + (d.detail || JSON.stringify(d)), true);
+      showMsg('❌ 上传失败：' + (d.detail || JSON.stringify(d)), true, 'EM_UPLOAD_ERROR');
     }
-  } catch (e) { showMsg('上传失败：' + e.message, true); }
+  } catch (e) {
+    showMsg('❌ 上传失败：' + e.message, true, 'EM_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '上传并入库';
+  }
 }
 
 async function emDelete(cat, filename) {
@@ -263,15 +313,14 @@ async function emDelete(cat, filename) {
     const r = await fetch(API + '/api/emergency/files/' + encodeURIComponent(cat) + '/' + encodeURIComponent(filename), { method: 'DELETE' });
     const d = await r.json();
     if (d.delete && d.delete.success) {
-      showMsg('已删除', false);
+      showMsg('✅ 已删除', false);
       emInit();
     } else {
-      showMsg('删除失败：' + (d.detail || JSON.stringify(d)), true);
+      showMsg('❌ 删除失败：' + (d.detail || JSON.stringify(d)), true, 'EM_DELETE_ERROR');
     }
-  } catch (e) { showMsg('删除失败：' + e.message, true); }
+  } catch (e) { showMsg('❌ 删除失败：' + e.message, true, 'EM_NETWORK_ERROR'); }
 }
 
-// --- Probe ---
 async function probeLoad() {
   try {
     const r = await fetch(API + '/api/probe/status');
@@ -286,7 +335,6 @@ async function probeLoad() {
     html += '</div>';
     document.getElementById('probe-status').innerHTML = html;
 
-    // Ingest status
     let ingestHtml = '';
     if (d.last_ingest) {
       const li = d.last_ingest;
@@ -314,46 +362,50 @@ async function probeLoad() {
     });
     if (history.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无采集记录</td></tr>';
 
-    // Ingest history
     const ihr = await fetch(API + '/api/probe/ingest-history');
     const ingestHistory = await ihr.json();
     const itbody = document.getElementById('probe-ingest-history');
     itbody.innerHTML = '';
     ingestHistory.reverse().forEach(h => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${h.time}</td><td>${h.total_parsed}</td><td class="status-ok">${h.total_inserted}</td><td>${h.total_skipped}</td><td>${h.errors && h.errors.length ? h.errors.length + ' 个' : '-'}</td>`;
+      const cls = h.errors && h.errors.length ? 'status-partial' : 'status-ok';
+      tr.innerHTML = `<td>${h.time}</td><td>${h.total_parsed}</td><td class="${cls}">${h.total_inserted}</td><td>${h.total_skipped}</td><td>${h.errors && h.errors.length ? h.errors.length + ' 个' : '-'}</td>`;
       itbody.appendChild(tr);
     });
     if (ingestHistory.length === 0) itbody.innerHTML = '<tr><td colspan="5" style="color:#888;">暂无入库记录</td></tr>';
-  } catch (e) { showMsg('加载探测状态失败：' + e.message, true); }
+  } catch (e) { showMsg('加载探测状态失败：' + e.message, true, 'PROBE_LOAD_ERROR'); }
 }
 
 async function probeCollect() {
-  showMsg('正在采集，请稍候...', false);
   try {
     const r = await fetch(API + '/api/probe/collect', { method: 'POST' });
     const d = await r.json();
     if (d.status === 'already_running') {
-      showMsg('采集正在进行中', true);
-    } else {
-      showMsg('采集已启动，完成后将自动解析入库', false);
+      showMsg('⚠️ 采集正在进行中', true, 'COLLECT_ALREADY_RUNNING');
+      return;
     }
-    setTimeout(probeLoad, 3000);
-  } catch (e) { showMsg('采集失败：' + e.message, true); }
+    showMsg('⏳ 采集已启动，等待结果...', false);
+    pollResult('/api/probe/collect-result',
+      (d) => { showMsg('✅ ' + d.message, false); probeLoad(); },
+      (d) => { showMsg('❌ ' + d.message, true, d.error_code); probeLoad(); }
+    );
+  } catch (e) { showMsg('❌ 采集请求失败：' + e.message, true, 'COLLECT_REQUEST_ERROR'); }
 }
 
 async function probeIngest() {
-  showMsg('正在解析入库，请稍候...', false);
   try {
     const r = await fetch(API + '/api/probe/parse-ingest', { method: 'POST' });
     const d = await r.json();
     if (d.status === 'already_running') {
-      showMsg('解析入库正在进行中', true);
-    } else {
-      showMsg('解析入库已启动，请稍后刷新查看结果', false);
+      showMsg('⚠️ 解析入库正在进行中', true, 'INGEST_ALREADY_RUNNING');
+      return;
     }
-    setTimeout(probeLoad, 3000);
-  } catch (e) { showMsg('解析入库失败：' + e.message, true); }
+    showMsg('⏳ 解析入库已启动，等待结果...', false);
+    pollResult('/api/probe/ingest-result',
+      (d) => { showMsg('✅ ' + d.message, false); probeLoad(); },
+      (d) => { showMsg('❌ ' + d.message, true, d.error_code); probeLoad(); }
+    );
+  } catch (e) { showMsg('❌ 解析入库请求失败：' + e.message, true, 'INGEST_REQUEST_ERROR'); }
 }
 
 ebLoad();
