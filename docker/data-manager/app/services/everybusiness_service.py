@@ -49,7 +49,7 @@ def save_and_parse(content: str) -> dict:
             env={
                 **os.environ,
                 "BUSINESS_DB_PATH": os.environ.get(
-                    "BUSINESS_DB_PATH", "/app/.deer-flow/db/business_baseline.db"
+                    "BUSINESS_DB_PATH", "/app/backend/.deer-flow/db/business_baseline.db"
                 ),
             },
         )

@@ -162,7 +162,7 @@ def parse_and_ingest_probe_data() -> dict:
     from models import insert_probe_metric
 
     cfg = get_config()
-    db_path = os.environ.get("PROBE_DB_PATH", "/app/.deer-flow/db/remote_probe.db")
+    db_path = os.environ.get("PROBE_DB_PATH", "/app/backend/.deer-flow/db/remote_probe.db")
     raw_base = Path(cfg.probe.local_raw_dir)
 
     init_db(db_path)
