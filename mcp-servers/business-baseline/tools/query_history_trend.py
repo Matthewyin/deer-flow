@@ -22,23 +22,27 @@ def query_history_trend_impl(
         return {"metric_key": metric_key, "data_points": 0, "trend": []}
 
     trend = []
+    numeric_fields = [
+        "request_count",
+        "tech_failures",
+        "biz_failures",
+        "peak_tps",
+        "avg_response_ms",
+        "max_response_ms",
+        "median_response_ms",
+        "extra_value",
+    ]
     for r in rows:
         if sub_name and r.get("sub_name") != sub_name:
+            continue
+        has_value = any(r.get(f) is not None for f in numeric_fields)
+        if not has_value:
             continue
         point = {
             "report_date": r["report_date"],
             "sub_name": r.get("sub_name"),
         }
-        for field in [
-            "request_count",
-            "tech_failures",
-            "biz_failures",
-            "peak_tps",
-            "avg_response_ms",
-            "max_response_ms",
-            "median_response_ms",
-            "extra_value",
-        ]:
+        for field in numeric_fields:
             if r.get(field) is not None:
                 point[field] = r[field]
         trend.append(point)

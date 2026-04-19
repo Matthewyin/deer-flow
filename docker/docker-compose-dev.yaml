@@ -248,6 +248,7 @@ services:
     volumes:
       - ../docs:/app/docs:rw
       - ../docker/volumes/deer-flow-data:/app/.deer-flow:rw
+      - ../backend/.deer-flow:/app/backend/.deer-flow:rw
       - ../mcp-servers:/app/mcp-servers:ro
       - type: bind
         source: ${DEER_FLOW_ROOT:?DEER_FLOW_ROOT must be set}/.ssh
@@ -257,8 +258,8 @@ services:
           create_host_path: true
     working_dir: /app
     environment:
-      - BUSINESS_DB_PATH=/app/.deer-flow/db/business_baseline.db
-      - PROBE_DB_PATH=/app/.deer-flow/db/remote_probe.db
+      - BUSINESS_DB_PATH=/app/backend/.deer-flow/db/business_baseline.db
+      - PROBE_DB_PATH=/app/backend/.deer-flow/db/remote_probe.db
       - DEER_FLOW_HOME=/app/.deer-flow
       - PROBE_SCHEDULER_ENABLED=${PROBE_SCHEDULER_ENABLED:-false}
     env_file:

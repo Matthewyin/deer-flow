@@ -170,7 +170,8 @@ def _parse_terminals(content: str, rd: str) -> list[dict]:
     platform_tps = _parse_num(m4.group(1)) if m4 else None
     return [
         _mk(
-            rd, "终端", "online_terminals", "在线终端数", request_count=total, unit="台"
+            rd, "终端", "online_terminals", "在线终端数",
+            request_count=total, extra_value=total, unit="台",
         ),
         _mk(
             rd,
