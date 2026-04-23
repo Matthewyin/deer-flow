@@ -11,6 +11,7 @@ from app.gateway.routers import (
     artifacts,
     assistants_compat,
     channels,
+    management,
     mcp,
     memory,
     models,
@@ -160,6 +161,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "name": "health",
                 "description": "Health check and system status endpoints",
             },
+            {
+                "name": "management",
+                "description": "Vector store management and rebuild operations",
+            },
         ],
     )
 
@@ -171,6 +176,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # MCP API is mounted at /api/mcp
     app.include_router(mcp.router)
+
+    # Management API is mounted at /api/management
+    app.include_router(management.router)
 
     # Memory API is mounted at /api/memory
     app.include_router(memory.router)

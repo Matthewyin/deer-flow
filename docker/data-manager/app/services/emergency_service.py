@@ -1,5 +1,4 @@
 import os
-import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -14,7 +13,6 @@ DOC_TYPE_TO_DIR = {v: k for k, v in CATEGORIES.items()}
 
 ALLOWED_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".txt", ".md", ".csv"}
 RAW_BASE = "/app/docs/ops-knowledge/raw"
-INGEST_SCRIPT = "/app/docs/batch_ingest_ops_knowledge.py"
 
 
 def list_categories() -> list[dict]:
@@ -72,20 +70,24 @@ def delete_file(category: str, filename: str) -> dict:
 
 
 def trigger_ingest() -> dict:
+    import urllib.request
+    import urllib.error
+    import json
+
+    url = "http://deer-flow-gateway:8001/api/management/rebuild-ops-knowledge-vectors"
     try:
-        result = subprocess.run(
-            ["python", INGEST_SCRIPT],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        return {
-            "success": result.returncode == 0,
-            "returncode": result.returncode,
-            "stdout": result.stdout[-500:] if result.stdout else "",
-            "stderr": result.stderr[-500:] if result.stderr else "",
-        }
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Ingest script timed out (120s)"}
+        req = urllib.request.Request(url, method="POST", data=b"{}")
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            body = json.loads(resp.read().decode())
+            return {
+                "success": body.get("success", False),
+                "message": body.get("message", ""),
+            }
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode() if e.fp else ""
+        return {"success": False, "error": f"Gateway returned {e.code}: {body_text}"}
+    except urllib.error.URLError as e:
+        return {"success": False, "error": f"Cannot reach Gateway: {e.reason}"}
     except Exception as e:
         return {"success": False, "error": str(e)}

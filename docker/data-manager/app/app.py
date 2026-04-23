@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi import Request
 
-from app.routers import everybusiness, emergency, probe
+from app.routers import everybusiness, emergency, probe, bandwidth
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -83,6 +83,7 @@ app = FastAPI(title="DeerFlow Data Manager", lifespan=lifespan)
 app.include_router(everybusiness.router)
 app.include_router(emergency.router)
 app.include_router(probe.router)
+app.include_router(bandwidth.router)
 
 templates = Jinja2Templates(directory="app/templates")
 

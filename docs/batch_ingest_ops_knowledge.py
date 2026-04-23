@@ -237,8 +237,8 @@ def ingest_one_file(
             }
         )
 
-    # Add to vectorstore in mini-batches to avoid Ollama overload
-    MINI_BATCH_SIZE = 20
+    # Add to vectorstore in batches
+    MINI_BATCH_SIZE = 100
     total_added = 0
     failed = False
 
@@ -252,7 +252,7 @@ def ingest_one_file(
         for attempt in range(1, max_retries + 1):
             try:
                 old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-                signal.alarm(120)  # 120s per mini-batch
+                signal.alarm(120)
                 try:
                     n = rag.add_chunks(batch)
                 finally:
@@ -286,8 +286,6 @@ def ingest_one_file(
         if batch_num % 5 == 0 or batch_num == total_batches:
             print(f"  [PROGRESS] {total_added}/{len(chunks)} chunks embedded")
 
-        # Small delay between mini-batches
-        time.sleep(0.5)
 
     if failed:
         # Clean up partial data
@@ -335,8 +333,8 @@ def main():
     parser.add_argument(
         "--delay",
         type=float,
-        default=2.0,
-        help="Delay between files in seconds (default=2.0)",
+        default=0,
+        help="Delay between files in seconds (default=0)",
     )
     args = parser.parse_args()
 

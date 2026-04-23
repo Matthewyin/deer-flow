@@ -54,6 +54,7 @@ th { color: #888; font-weight: 600; }
   <div class="tab active" data-tab="everybusiness">每日运营</div>
   <div class="tab" data-tab="emergency">应急预案</div>
   <div class="tab" data-tab="probe">探测数据</div>
+  <div class="tab" data-tab="bandwidth">带宽策略</div>
 </div>
 
 <div id="message"></div>
@@ -131,6 +132,20 @@ th { color: #888; font-weight: 600; }
     </div>
   </div>
 
+  <!-- Tab 4: Bandwidth -->
+  <div class="panel" id="panel-bandwidth">
+    <div class="card">
+      <h2>带宽扩缩容指南文档</h2>
+      <div id="bw-status" style="font-size:13px;color:#888;margin-bottom:12px;"></div>
+      <div class="upload-area">
+        <input type="file" id="bw-file" accept=".md">
+        <button class="btn btn-primary" onclick="bwUpload()">上传并重建</button>
+        <button class="btn" onclick="bwRebuild()">手动重建向量库</button>
+      </div>
+      <div class="info">上传新的 bandwidth.md 后将覆盖旧文件并自动触发向量库重建。仅支持 .md 格式。</div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -145,6 +160,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'emergency') emInit();
     if (tab.dataset.tab === 'probe') probeLoad();
+    if (tab.dataset.tab === 'bandwidth') bwLoadStatus();
   };
 });
 
@@ -222,7 +238,70 @@ async function ebSubmit() {
       } else {
         showMsg(msg, false);
       }
-      ebLoad();
+async function bwLoadStatus() {
+  try {
+    const r = await fetch(API + '/api/bandwidth/status');
+    const d = await r.json();
+    const el = document.getElementById('bw-status');
+    if (d.exists) {
+      el.innerHTML = `<strong>当前文件：</strong>${d.filename} (${formatSize(d.size)})  最后更新：${d.last_modified || '未知'}`;
+    } else {
+      el.innerHTML = '<span style="color:#e74c3c;">当前无 bandwidth.md 文件</span>';
+    }
+  } catch (e) { showMsg('加载带宽策略状态失败：' + e.message, true, 'BW_LOAD_ERROR'); }
+}
+
+async function bwUpload() {
+  const fileInput = document.getElementById('bw-file');
+  if (!fileInput.files[0]) { showMsg('请选择 .md 文件', true, 'BW_NO_FILE'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '上传中...';
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch(API + '/api/bandwidth/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.save && d.save.success) {
+      if (d.rebuild && d.rebuild.success) {
+        showMsg('✅ 上传成功，向量库重建完成', false);
+      } else {
+        showMsg('⚠️ 上传成功，但重建失败：' + (d.rebuild ? d.rebuild.error : '未知错误'), true, 'BW_REBUILD_ERROR');
+      }
+      bwLoadStatus();
+      fileInput.value = '';
+    } else {
+      showMsg('❌ 上传失败：' + (d.detail || JSON.stringify(d)), true, 'BW_UPLOAD_ERROR');
+    }
+  } catch (e) {
+    showMsg('❌ 上传失败：' + e.message, true, 'BW_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '上传并重建';
+  }
+}
+
+async function bwRebuild() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '重建中...';
+  try {
+    const r = await fetch(API + '/api/bandwidth/rebuild', { method: 'POST' });
+    const d = await r.json();
+    if (d.rebuild && d.rebuild.success) {
+      showMsg('✅ 向量库重建完成', false);
+    } else {
+      showMsg('❌ 重建失败：' + (d.rebuild ? d.rebuild.error : '未知错误'), true, 'BW_REBUILD_ERROR');
+    }
+  } catch (e) {
+    showMsg('❌ 重建请求失败：' + e.message, true, 'BW_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '手动重建向量库';
+  }
+}
+
+ebLoad();
     } else {
       showMsg('❌ 保存失败：' + d.error, true, 'EB_SAVE_ERROR');
     }
