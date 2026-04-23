@@ -11,7 +11,6 @@ import os
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from fastmcp import FastMCP
 
@@ -31,6 +30,22 @@ _TEMPLATE_NAMES = {
     "emergency": "模板三",
     "scale_down": "模板四",
 }
+
+
+def _extract_recipients(template_text: str) -> tuple[str, str]:
+    """Extract 收件人 and 抄送 from template text.
+
+    Returns (recipients_str, cc_str).
+    """
+    recipients = ""
+    cc = ""
+    rec_match = re.search(r"^收件人[：:]\s*(.+)$", template_text, re.MULTILINE)
+    if rec_match:
+        recipients = rec_match.group(1).strip()
+    cc_match = re.search(r"^抄送[：:]\s*(.+)$", template_text, re.MULTILINE)
+    if cc_match:
+        cc = cc_match.group(1).strip()
+    return recipients, cc
 
 
 def _load_templates() -> dict[str, str]:
@@ -67,14 +82,8 @@ def _load_templates() -> dict[str, str]:
     return result
 
 
-_templates: Optional[dict[str, str]] = None
-
-
 def _get_templates() -> dict[str, str]:
-    global _templates
-    if _templates is None:
-        _templates = _load_templates()
-    return _templates
+    return _load_templates()
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +372,7 @@ def register(mcp: FastMCP):
             }
 
         raw_template = templates[key]
+        recipients_str, cc_str = _extract_recipients(raw_template)
         filled = _fill_fields(raw_template, key, line_info, assessment)
         markdown_content = _tsv_to_markdown_tables(filled)
         subject_match = re.search(r"邮件主题[：:]\s*(.+)", markdown_content)
@@ -379,19 +389,8 @@ def register(mcp: FastMCP):
         return {
             "file_path": str(file_path),
             "subject": subject,
-            "recipients": ["李王昊"],
-            "cc": [
-                "潘处",
-                "毅总",
-                "许祎恒",
-                "霍乾",
-                "黄美华",
-                "王亮",
-                "一线",
-                "二线",
-                "值班经理",
-                "商务",
-            ],
+            "recipients": recipients_str,
+            "cc": cc_str,
             "template_type": key,
             "message": f"邮件草稿已生成：{filename}。请检查并手动补充占位符字段后发送。",
         }
