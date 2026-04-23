@@ -86,6 +86,11 @@ async def rebuild_bandwidth_vectors() -> RebuildResponse:
             logger.info(f"Removing existing vectorstore at {persist_dir}")
             shutil.rmtree(persist_dir)
 
+        bw_db = project_root / ".deer-flow" / "db" / "network_ops.db"
+        if bw_db.exists():
+            logger.info(f"Removing bandwidth tiers DB at {bw_db}")
+            bw_db.unlink()
+
         BandwidthRAG = _import_bandwidth_rag()
 
         rag = BandwidthRAG(
@@ -138,13 +143,17 @@ async def rebuild_bandwidth_vectors() -> RebuildResponse:
 )
 async def rebuild_ops_knowledge_vectors() -> RebuildResponse:
     try:
+        project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
         persist_dir = _get_persist_dir_from_env(".deer-flow/vectors/ops_knowledge")
 
         if Path(persist_dir).exists():
             logger.info(f"Removing existing vectorstore at {persist_dir}")
             shutil.rmtree(persist_dir)
 
-        project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        ops_db = project_root / ".deer-flow" / "db" / "ops_knowledge.db"
+        if ops_db.exists():
+            logger.info(f"Removing metadata DB at {ops_db}")
+            ops_db.unlink()
         ingest_script = str(project_root / "docs" / "batch_ingest_ops_knowledge.py")
 
         import subprocess
