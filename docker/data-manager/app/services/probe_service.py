@@ -83,10 +83,10 @@ def get_status() -> dict:
 
             # Count uningested files from DB
             uningested_row = conn.execute(
-                "SELECT COUNT(*) as cnt FROM raw_files WHERE region = ? AND ingested = 0",
+                "SELECT COUNT(*) FROM raw_files WHERE region = ? AND ingested = 0",
                 (name,),
             ).fetchone()
-            uningested = uningested_row["cnt"] if uningested_row else 0
+            uningested = uningested_row[0] if uningested_row else 0
 
             regions_info.append({
                 "name": name,

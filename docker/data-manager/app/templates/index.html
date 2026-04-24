@@ -229,6 +229,13 @@ document.querySelectorAll('.tab').forEach(tab => {
   };
 });
 
+// Auto-refresh probe status when tab/window regains focus
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && document.querySelector('.tab[data-tab="probe"].active')) {
+    probeLoad();
+  }
+});
+
 function showMsg(text, isError, errorCode) {
   const el = document.getElementById('message');
   let html = text;
@@ -698,6 +705,29 @@ async function probeIngest() {
   // This function is deprecated - ingest is now handled by MCP-server
   showMsg('⚠️ 解析入库已迁移至 MCP Server，自动处理', false, 'INGEST_DEPRECATED');
 }
+
+async function probeRefreshUningested() {
+  try {
+    const r = await fetch(API + '/api/probe/uningested');
+    const d = await r.json();
+    const total = d.total_uningested || 0;
+    const uningestedEl = document.getElementById('probe-uningested-count');
+    const ingestStatusEl = document.getElementById('probe-ingest-status');
+    if (uningestedEl) {
+      uningestedEl.textContent = total;
+      uningestedEl.className = total > 0 ? 'probe-metric-val warn' : 'probe-metric-val success';
+    }
+    if (ingestStatusEl) {
+      if (total > 0) {
+        ingestStatusEl.innerHTML = `<div class="probe-status-warn">⚠️ <strong>${total}</strong> 文件待入库<div class="probe-mcp-note">由 MCP Server 处理</div></div>`;
+      } else {
+        ingestStatusEl.innerHTML = `<div class="probe-status-ok">✓ 所有文件已入库</div>`;
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+
+setInterval(probeRefreshUningested, 30000);
 
 ebLoad();
 </script>

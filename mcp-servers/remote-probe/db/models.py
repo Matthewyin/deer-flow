@@ -145,24 +145,24 @@ def insert_baseline_history(
 
 def get_all_region_domains(conn) -> list[tuple[str, str]]:
     rows = conn.execute("SELECT DISTINCT region, domain FROM probe_metrics").fetchall()
-    return [(r["region"], r["domain"]) for r in rows]
+    return [(r[0], r[1]) for r in rows]
 
 
 def get_metric_count(conn, region: str, domain: str) -> int:
     row = conn.execute(
-        "SELECT COUNT(*) as cnt FROM probe_metrics WHERE region = ? AND domain = ?",
+        "SELECT COUNT(*) FROM probe_metrics WHERE region = ? AND domain = ?",
         (region, domain),
     ).fetchone()
-    return row["cnt"] if row else 0
+    return row[0] if row else 0
 
 
 def get_uningested_file_count(conn, region: str) -> int:
     """Return count of uningested raw files for a given region."""
     row = conn.execute(
-        "SELECT COUNT(*) as cnt FROM raw_files WHERE region = ? AND ingested = 0",
+        "SELECT COUNT(*) FROM raw_files WHERE region = ? AND ingested = 0",
         (region,),
     ).fetchone()
-    return row["cnt"] if row else 0
+    return row[0] if row else 0
 
 
 def mark_raw_files_ingested(conn, region: str) -> int:
@@ -181,7 +181,7 @@ def mark_raw_files_ingested(conn, region: str) -> int:
 def get_latest_metric_timestamp(conn, region: str) -> Optional[str]:
     """Return the most recent probe_timestamp for a region, or None."""
     row = conn.execute(
-        "SELECT MAX(probe_timestamp) as ts FROM probe_metrics WHERE region = ?",
+        "SELECT MAX(probe_timestamp) FROM probe_metrics WHERE region = ?",
         (region,),
     ).fetchone()
-    return row["ts"] if row and row["ts"] else None
+    return row[0] if row and row[0] else None

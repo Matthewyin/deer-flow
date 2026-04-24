@@ -5,7 +5,7 @@ from typing import Optional
 
 from config import get_config
 from db.database import get_connection, init_db
-from db.models import insert_probe_metric
+from db.models import insert_probe_metric, mark_raw_files_ingested
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,9 @@ def parse_probe_results_impl(regions: Optional[list[str]] = None) -> dict:
                 summary["parsed"] += 1
             else:
                 summary["skipped"] += 1
+
+        marked = mark_raw_files_ingested(conn, region)
+        summary["marked_ingested"] = marked
 
         results[region] = summary
 

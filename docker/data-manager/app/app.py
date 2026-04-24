@@ -7,8 +7,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi import Request
+from zoneinfo import ZoneInfo
 
 from app.routers import everybusiness, emergency, probe, bandwidth
+
+_CST = ZoneInfo("Asia/Shanghai")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -67,10 +70,10 @@ async def lifespan(app: FastAPI):
                 except Exception as e:
                     logger.error(f"Scheduled probe collection failed: {e}")
 
-            _scheduler = BackgroundScheduler()
-            _scheduler.add_job(scheduled_collect, "cron", hour="11,17", minute=0)
+            _scheduler = BackgroundScheduler(timezone=_CST)
+            _scheduler.add_job(scheduled_collect, "cron", hour="11,17", minute=0, timezone=_CST)
             _scheduler.start()
-            logger.info("Probe scheduler started (11:00, 17:00)")
+            logger.info("Probe scheduler started (Beijing 11:00, 17:00)")
             yield
             _scheduler.shutdown()
             _scheduler = None
