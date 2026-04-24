@@ -19,9 +19,12 @@ PROBE_SCHEDULER_ENABLED = os.environ.get(
     "PROBE_SCHEDULER_ENABLED", "false"
 ).lower() in ("true", "1", "yes")
 
+_scheduler = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _scheduler
     logger.info("Data Manager starting up")
     if PROBE_SCHEDULER_ENABLED:
         try:
@@ -59,17 +62,18 @@ async def lifespan(app: FastAPI):
                     }
                     save_collection_log(log_entry)
                     logger.info(
-                        f"Scheduled probe collection done: {total_new} new files"
+                        f"Scheduled collection done: {total_new} new files (ingest by MCP-server)"
                     )
                 except Exception as e:
                     logger.error(f"Scheduled probe collection failed: {e}")
 
-            scheduler = BackgroundScheduler()
-            scheduler.add_job(scheduled_collect, "cron", hour="11,17", minute=0)
-            scheduler.start()
+            _scheduler = BackgroundScheduler()
+            _scheduler.add_job(scheduled_collect, "cron", hour="11,17", minute=0)
+            _scheduler.start()
             logger.info("Probe scheduler started (11:00, 17:00)")
             yield
-            scheduler.shutdown()
+            _scheduler.shutdown()
+            _scheduler = None
         except Exception as e:
             logger.error(f"Failed to start probe scheduler: {e}")
             yield

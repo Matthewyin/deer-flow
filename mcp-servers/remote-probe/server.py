@@ -12,6 +12,7 @@ from tools.update_baseline import register as register_update_baseline
 from tools.compare_with_baseline import register as register_compare
 from tools.generate_probe_report import register as register_report
 from tools.scheduler import register as register_scheduler
+from tools.ensure_probe_data import register as register_ensure
 
 register_collect(mcp)
 register_parse(mcp)
@@ -20,6 +21,7 @@ register_update_baseline(mcp)
 register_compare(mcp)
 register_report(mcp)
 register_scheduler(mcp)
+register_ensure(mcp)
 
 from tools.scheduler import start_scheduler
 

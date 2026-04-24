@@ -40,6 +40,7 @@ class ServerConfig:
     sqlite: SQLiteConfig = None
     probe: ProbeConfig = None
     scheduler: SchedulerConfig = None
+    data_manager_url: str = "http://deer-flow-data-manager:8000"
 
     def __post_init__(self):
         if self.sqlite is None:
@@ -70,6 +71,9 @@ class ServerConfig:
                 update_window_size=int(os.getenv("PROBE_UPDATE_WINDOW", "30")),
                 update_weight_recent=float(os.getenv("PROBE_UPDATE_WEIGHT", "0.7")),
             )
+        self.data_manager_url = os.getenv(
+            "DATA_MANAGER_URL", "http://deer-flow-data-manager:8000"
+        )
 
 
 def get_config() -> ServerConfig:

@@ -42,6 +42,60 @@ th { color: #888; font-weight: 600; }
 .upload-area { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
 .upload-area input[type="file"] { font-size: 13px; }
 .loading { opacity: 0.6; pointer-events: none; }
+
+/* Probe tab — operation bar */
+.probe-op-bar { display: flex; align-items: center; gap: 16px; padding: 14px 20px; flex-wrap: wrap; }
+.probe-op-bar-left { display: flex; gap: 20px; flex: 1; }
+.probe-op-bar-center { display: flex; gap: 8px; }
+.probe-op-bar-right { display: flex; flex-direction: column; gap: 4px; text-align: right; }
+.probe-metric { display: flex; flex-direction: column; }
+.probe-metric-val { font-size: 18px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.probe-metric-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.probe-last { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666; }
+.probe-last-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.probe-last-dot.ok { background: #27ae60; }
+.probe-last-dot.partial { background: #f39c12; }
+.probe-last-dot.fail { background: #e74c3c; }
+.probe-last-dot.idle { background: #ccc; }
+
+/* Probe tab — timeline */
+.probe-timeline-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.probe-timeline-title { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+.probe-timeline-count { font-size: 12px; color: #888; }
+.probe-timeline { position: relative; }
+.probe-timeline-item { display: flex; gap: 14px; margin-bottom: 0; position: relative; }
+.probe-timeline-item:not(:last-child)::before { content: ''; position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px; background: #e8e8e8; }
+.probe-timeline-item .probe-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: 1; margin-top: 2px; font-size: 10px; font-weight: 700; color: #fff; }
+.probe-dot.ok { background: #27ae60; }
+.probe-dot.partial { background: #f39c12; }
+.probe-dot.fail { background: #e74c3c; }
+.probe-dot.ingest { background: #1a1a2e; }
+.probe-timeline-item .probe-event { flex: 1; padding-bottom: 16px; }
+.probe-event-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.probe-event-type { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+.probe-event-meta { font-size: 12px; color: #888; }
+.probe-event-summary { font-size: 13px; color: #555; margin-top: 4px; }
+.probe-event-summary span { margin-right: 14px; }
+.probe-event-summary .val { color: #1a1a2e; font-weight: 600; }
+.probe-detail { margin-top: 10px; overflow: hidden; transition: max-height 0.3s ease; }
+.probe-detail.collapsed { max-height: 0 !important; }
+.probe-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.probe-region-stat { background: #f8f8f8; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
+.probe-region-stat .rs-city { font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.probe-region-stat .rs-row { display: flex; justify-content: space-between; color: #666; }
+.probe-region-stat .rs-row span:last-child { font-weight: 600; color: #333; }
+.probe-ingest-stat { background: #f8f8f8; border-radius: 6px; padding: 8px 12px; font-size: 12px; }
+.probe-ingest-stat .rs-city { font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.probe-ingest-stat .rs-row { display: flex; justify-content: space-between; color: #666; }
+.probe-ingest-stat .rs-row span:last-child { font-weight: 600; color: #333; }
+.probe-timeline-toggle { margin-top: 12px; text-align: center; }
+
+/* Uningested badge */
+.probe-metric-val.warn { color: #f39c12; }
+.probe-metric-val.success { color: #27ae60; }
+.probe-status-warn { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #f39c12; padding: 6px 12px; background: #fff8e6; border-radius: 6px; border: 1px solid #f39c12; }
+.probe-status-ok { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #27ae60; padding: 6px 12px; background: #e8f8f0; border-radius: 6px; border: 1px solid #27ae60; }
+.probe-mcp-note { font-size: 11px; color: #888; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -97,38 +151,49 @@ th { color: #888; font-weight: 600; }
 
   <!-- Tab 3: Probe -->
   <div class="panel" id="panel-probe">
-    <div class="card">
-      <h2>ECS 探测数据采集</h2>
-      <div id="probe-status" style="margin-bottom:12px;"></div>
-      <div class="actions">
+    <div class="card probe-op-bar">
+      <div class="probe-op-bar-left">
+        <div class="probe-metric" id="probe-metric-regions">
+          <span class="probe-metric-val" id="probe-region-count">-</span>
+          <span class="probe-metric-label">区域在线</span>
+        </div>
+        <div class="probe-metric">
+          <span class="probe-metric-val" id="probe-file-count">-</span>
+          <span class="probe-metric-label">文件</span>
+        </div>
+        <div class="probe-metric">
+          <span class="probe-metric-val" id="probe-scheduler">-</span>
+          <span class="probe-metric-label">定时任务</span>
+        </div>
+        <div class="probe-metric" id="probe-metric-uningested">
+          <span class="probe-metric-val" id="probe-uningested-count">-</span>
+          <span class="probe-metric-label">待入库</span>
+        </div>
+      </div>
+      <div class="probe-op-bar-center">
         <button class="btn btn-primary" onclick="probeCollect()">立即采集</button>
+        <div id="probe-ingest-status"></div>
+      </div>
+      <div class="probe-op-bar-right">
+        <div class="probe-last" id="probe-last-collect">
+          <span class="probe-last-dot ok"></span>
+          <span id="probe-last-collect-text">上次采集: --</span>
+        </div>
+        <div class="probe-last" id="probe-last-ingest">
+          <span class="probe-last-dot idle"></span>
+          <span id="probe-last-ingest-text">入库由 MCP Server 管理</span>
+        </div>
       </div>
     </div>
     <div class="card">
-      <h2>解析入库</h2>
-      <div id="probe-ingest-status" style="margin-bottom:12px;"></div>
-      <div class="actions">
-        <button class="btn btn-primary" onclick="probeIngest()">手动解析入库</button>
+      <div class="probe-timeline-header">
+        <span class="probe-timeline-title">采集记录</span>
+        <span class="probe-timeline-count" id="probe-timeline-count"></span>
       </div>
-      <div class="info">将已采集的 JSON 文件解析后写入 probe_metrics 表。采集完成后会自动触发，也可手动触发。已入库的文件会跳过。</div>
-    </div>
-    <div class="card">
-      <h2>采集历史</h2>
-      <table>
-        <thead><tr><th>时间</th><th>状态</th><th>新文件</th><th>错误</th></tr></thead>
-        <tbody id="probe-history"></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>入库历史</h2>
-      <table>
-        <thead><tr><th>时间</th><th>解析</th><th>入库</th><th>跳过</th><th>错误</th></tr></thead>
-        <tbody id="probe-ingest-history"></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>各区域文件数</h2>
-      <div id="probe-regions"></div>
+      <div class="probe-timeline" id="probe-timeline"></div>
+      <div class="probe-timeline-toggle" id="probe-timeline-toggle" style="display:none;">
+        <button class="btn btn-sm" onclick="probeToggleMore()">显示更多</button>
+      </div>
     </div>
   </div>
 
@@ -402,58 +467,211 @@ async function emDelete(cat, filename) {
 
 async function probeLoad() {
   try {
-    const r = await fetch(API + '/api/probe/status');
-    const d = await r.json();
-    let html = '<div style="display:flex;gap:24px;flex-wrap:wrap;">';
-    html += `<div><strong>定时任务：</strong>${d.scheduler_running ? '<span class="status-ok">运行中</span>' : '未启用'}</div>`;
-    html += `<div><strong>下次执行：</strong>${d.next_run || '-'}</div>`;
-    if (d.last_collection) {
-      const lc = d.last_collection;
-      html += `<div><strong>最近采集：</strong><span class="status-${lc.status === 'success' ? 'ok' : lc.status === 'partial' ? 'partial' : 'fail'}">${lc.status}</span> ${lc.new_files} 个新文件 ${lc.time}</div>`;
-    }
-    html += '</div>';
-    document.getElementById('probe-status').innerHTML = html;
+    const [statusRes, histRes] = await Promise.all([
+      fetch(API + '/api/probe/status'),
+      fetch(API + '/api/probe/history')
+    ]);
+    const status = await statusRes.json();
+    const history = await histRes.json();
 
-    let ingestHtml = '';
-    if (d.last_ingest) {
-      const li = d.last_ingest;
-      const statusClass = li.errors && li.errors.length > 0 ? 'partial' : 'ok';
-      ingestHtml = `<div style="display:flex;gap:24px;flex-wrap:wrap;">`;
-      ingestHtml += `<div><strong>最近入库：</strong><span class="status-${statusClass}">${li.total_inserted} 条入库</span> ${li.total_parsed} 解析 ${li.total_skipped} 跳过 ${li.time}</div>`;
-      ingestHtml += '</div>';
+    // ── Operation bar metrics ──
+    const regionCount = status.regions ? status.regions.length : 0;
+    const totalFiles = status.regions ? status.regions.reduce((s, r) => s + (r.file_count || 0), 0) : 0;
+    const totalUningested = status.regions ? status.regions.reduce((s, r) => s + (r.uningested_files || 0), 0) : 0;
+    document.getElementById('probe-region-count').textContent = regionCount;
+    document.getElementById('probe-file-count').textContent = totalFiles;
+    document.getElementById('probe-scheduler').textContent = status.scheduler_running ? '运行中' : '未启用';
+
+    // Uningested counter with color coding
+    const uningestedEl = document.getElementById('probe-uningested-count');
+    const uningestedMetric = document.getElementById('probe-metric-uningested');
+    uningestedEl.textContent = totalUningested;
+    if (totalUningested > 0) {
+      uningestedEl.className = 'probe-metric-val warn';
     } else {
-      ingestHtml = '<div style="color:#888;">暂无入库记录</div>';
+      uningestedEl.className = 'probe-metric-val success';
     }
-    document.getElementById('probe-ingest-status').innerHTML = ingestHtml;
 
-    const regDiv = document.getElementById('probe-regions');
-    regDiv.innerHTML = d.regions.map(r => `<span style="display:inline-block;margin:4px 8px 4px 0;padding:4px 10px;background:#f0f0f0;border-radius:4px;font-size:13px;">${r.city} (${r.name}): <strong>${r.file_count}</strong></span>`).join('');
+    // Ingest status indicator (replaces the ingest button)
+    const ingestStatusEl = document.getElementById('probe-ingest-status');
+    if (totalUningested > 0) {
+      ingestStatusEl.innerHTML = `<div class="probe-status-warn">⚠️ <strong>${totalUningested}</strong> 文件待入库<div class="probe-mcp-note">由 MCP Server 处理</div></div>`;
+    } else {
+      ingestStatusEl.innerHTML = `<div class="probe-status-ok">✓ 所有文件已入库</div>`;
+    }
 
-    const hr = await fetch(API + '/api/probe/history');
-    const history = await hr.json();
-    const tbody = document.getElementById('probe-history');
-    tbody.innerHTML = '';
-    history.reverse().forEach(h => {
-      const tr = document.createElement('tr');
-      const cls = h.status === 'success' ? 'status-ok' : h.status === 'partial' ? 'status-partial' : 'status-fail';
-      tr.innerHTML = `<td>${h.time}</td><td class="${cls}">${h.status}</td><td>${h.new_files}</td><td>${h.errors && h.errors.length ? h.errors.join(', ') : '-'}</td>`;
-      tbody.appendChild(tr);
+    // Last collect
+    if (status.last_collection) {
+      const lc = status.last_collection;
+      const dot = document.querySelector('#probe-last-collect .probe-last-dot');
+      dot.className = 'probe-last-dot ' + (lc.status === 'success' ? 'ok' : lc.status === 'partial' ? 'partial' : 'fail');
+      document.getElementById('probe-last-collect-text').textContent = '上次采集: ' + (lc.time ? timeAgo(lc.time) : '--') + ' ' + lc.new_files + ' 新文件';
+    } else {
+      document.getElementById('probe-last-collect-text').textContent = '上次采集: --';
+    }
+
+    // Last ingest — now shows MCP-server managed status
+    const lastIngestText = document.getElementById('probe-last-ingest-text');
+    lastIngestText.textContent = '入库由 MCP Server 统一管理';
+
+    // ── Timeline (collection only, ingest is MCP-server managed) ──
+    const DEFAULT_SHOWN = 3;
+
+    // Tag each collection event with uningested info
+    const collEvents = (history || []).map(h => {
+      // Calculate uningested files for regions in this collection
+      const uningestedInCollection = status.regions ? status.regions.reduce((s, r) => s + (r.uningested_files || 0), 0) : 0;
+      return { ...h, _type: 'collect', _uningested: uningestedInCollection };
     });
-    if (history.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无采集记录</td></tr>';
 
-    const ihr = await fetch(API + '/api/probe/ingest-history');
-    const ingestHistory = await ihr.json();
-    const itbody = document.getElementById('probe-ingest-history');
-    itbody.innerHTML = '';
-    ingestHistory.reverse().forEach(h => {
-      const tr = document.createElement('tr');
-      const cls = h.errors && h.errors.length ? 'status-partial' : 'status-ok';
-      tr.innerHTML = `<td>${h.time}</td><td>${h.total_parsed}</td><td class="${cls}">${h.total_inserted}</td><td>${h.total_skipped}</td><td>${h.errors && h.errors.length ? h.errors.length + ' 个' : '-'}</td>`;
-      itbody.appendChild(tr);
-    });
-    if (ingestHistory.length === 0) itbody.innerHTML = '<tr><td colspan="5" style="color:#888;">暂无入库记录</td></tr>';
+    window._probeAllEvents = collEvents;
+    window._probeShownCount = DEFAULT_SHOWN;
+    window._probeTotalUningested = totalUningested;
+
+    renderTimeline(collEvents, DEFAULT_SHOWN);
+
   } catch (e) { showMsg('加载探测状态失败：' + e.message, true, 'PROBE_LOAD_ERROR'); }
 }
+
+function renderTimeline(events, shown) {
+  const container = document.getElementById('probe-timeline');
+  const toggle = document.getElementById('probe-timeline-toggle');
+  const count = document.getElementById('probe-timeline-count');
+  if (!container) return;
+
+  const totalUningested = window._probeTotalUningested || 0;
+
+  // Add MCP-server note to count
+  count.textContent = events.length + ' 条采集记录';
+
+  // Add ingest status note above timeline
+  let ingestNoteHtml = '';
+  if (totalUningested > 0) {
+    ingestNoteHtml = `<div style="margin-bottom:16px;padding:10px 14px;background:#fff8e6;border-radius:6px;border:1px solid #f39c12;font-size:13px;color:#856404;">
+      ⚠️ 当前有 <strong>${totalUningested}</strong> 个文件待入库，入库由 <strong>MCP Server</strong> 自动处理
+    </div>`;
+  } else {
+    ingestNoteHtml = `<div style="margin-bottom:16px;padding:10px 14px;background:#e8f8f0;border-radius:6px;border:1px solid #27ae60;font-size:13px;color:#155724;">
+      ✓ 所有采集文件已入库，入库由 <strong>MCP Server</strong> 统一管理
+    </div>`;
+  }
+  container.innerHTML = ingestNoteHtml;
+
+  events.slice(0, shown).forEach((ev, i) => {
+    const isCollect = ev._type === 'collect';
+    const isOk = ev.status === 'success';
+    const isPartial = ev.status === 'partial';
+    // Show amber dot if there are uningested files, green otherwise
+    const hasUningested = totalUningested > 0;
+    const dotCls = isCollect ? (isOk ? (hasUningested ? 'partial' : 'ok') : isPartial ? 'partial' : 'fail') : (ev.errors && ev.errors.length ? 'partial' : 'ok');
+    const dotLabel = isCollect ? '采' : '入';
+    const typeLabel = isCollect ? '采集完成' : '入库完成';
+    const timeStr = ev.time ? fmtTime(ev.time) : '--';
+
+    const summaryParts = [];
+    if (isCollect) {
+      summaryParts.push(`<span><span class="val">${ev.new_files}</span> 新文件</span>`);
+      if (hasUningested) {
+        summaryParts.push(`<span style="color:#f39c12;"><span class="val">${totalUningested}</span> 待入库</span>`);
+      }
+      if (ev.errors && ev.errors.length) summaryParts.push(`<span style="color:#e74c3c;"><span class="val">${ev.errors.length}</span> 错误</span>`);
+    } else {
+      summaryParts.push(`<span><span class="val">${ev.total_inserted}</span> 条新增</span>`);
+      summaryParts.push(`<span><span class="val">${ev.total_skipped}</span> 跳过</span>`);
+      if (ev.errors && ev.errors.length) summaryParts.push(`<span style="color:#e74c3c;"><span class="val">${ev.errors.length}</span> 错误</span>`);
+    }
+
+    const expanded = i < 3; // first 3 are expanded by default
+    const detailId = 'probe-detail-' + i;
+
+    let detailHtml = '';
+    if (isCollect && ev.details) {
+      const cities = Object.keys(ev.details);
+      if (cities.length > 0) {
+        detailHtml = '<div class="probe-detail-grid">';
+        cities.forEach(city => {
+          const ds = ev.details[city];
+          detailHtml += `<div class="probe-region-stat">
+            <div class="rs-city">${city}</div>
+            <div class="rs-row"><span>JSON 新增</span><span>${ds.json_new}</span></div>
+            <div class="rs-row"><span>JSON 跳过</span><span>${ds.json_skipped}</span></div>
+            <div class="rs-row"><span>TGZ 总数</span><span>${ds.tgz_total}</span></div>
+            <div class="rs-row"><span>TGZ 新增</span><span>${ds.tgz_new}</span></div>
+          </div>`;
+        });
+        detailHtml += '</div>';
+      }
+    }
+
+    const item = document.createElement('div');
+    item.className = 'probe-timeline-item';
+    item.innerHTML = `
+      <div class="probe-dot ${dotCls}">${dotLabel}</div>
+      <div class="probe-event">
+        <div class="probe-event-header">
+          <span class="probe-event-type">${typeLabel}</span>
+          <span class="probe-event-meta">${timeStr}</span>
+        </div>
+        <div class="probe-event-summary">${summaryParts.join('')}</div>
+        <div class="probe-detail${expanded ? '' : ' collapsed'}" id="${detailId}" style="max-height:${expanded ? '500px' : '0'};">
+          ${detailHtml}
+        </div>
+      </div>`;
+
+    // make the header clickable to toggle
+    const header = item.querySelector('.probe-event-header');
+    header.style.cursor = 'pointer';
+    header.onclick = () => {
+      const detail = document.getElementById(detailId);
+      if (detail.classList.contains('collapsed')) {
+        detail.classList.remove('collapsed');
+        detail.style.maxHeight = '500px';
+      } else {
+        detail.classList.add('collapsed');
+        detail.style.maxHeight = '0';
+      }
+    };
+
+    container.appendChild(item);
+  });
+
+  if (events.length > shown) {
+    toggle.style.display = 'block';
+    const btn = toggle.querySelector('button');
+    btn.textContent = '显示更多 (' + (events.length - shown) + ')';
+  } else {
+    toggle.style.display = 'none';
+  }
+}
+
+function probeToggleMore() {
+  const shown = window._probeShownCount || 3;
+  const all = window._probeAllEvents || [];
+  const newShown = Math.min(shown + 10, all.length);
+  window._probeShownCount = newShown;
+  renderTimeline(all, newShown);
+}
+
+function fmtTime(iso) {
+  try {
+    const d = new Date(iso);
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  } catch(e) { return iso; }
+}
+
+function timeAgo(iso) {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return '刚刚';
+    if (m < 60) return m + '分钟前';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + '小时前';
+    return Math.floor(h / 24) + '天前';
+  } catch(e) { return iso; }
+}
+
+function pad(n) { return n < 10 ? '0' + n : n; }
 
 async function probeCollect() {
   try {
@@ -465,26 +683,20 @@ async function probeCollect() {
     }
     showMsg('⏳ 采集已启动，等待结果...', false);
     pollResult('/api/probe/collect-result',
-      (d) => { showMsg('✅ ' + d.message, false); probeLoad(); },
+      (d) => {
+        // Show collection result with pending ingest count
+        const uningestedInfo = d.uningested_files !== undefined ? `（${d.uningested_files} 文件待入库）` : '';
+        showMsg('✅ ' + d.message + uningestedInfo, false);
+        probeLoad();
+      },
       (d) => { showMsg('❌ ' + d.message, true, d.error_code); probeLoad(); }
     );
   } catch (e) { showMsg('❌ 采集请求失败：' + e.message, true, 'COLLECT_REQUEST_ERROR'); }
 }
 
 async function probeIngest() {
-  try {
-    const r = await fetch(API + '/api/probe/parse-ingest', { method: 'POST' });
-    const d = await r.json();
-    if (d.status === 'already_running') {
-      showMsg('⚠️ 解析入库正在进行中', true, 'INGEST_ALREADY_RUNNING');
-      return;
-    }
-    showMsg('⏳ 解析入库已启动，等待结果...', false);
-    pollResult('/api/probe/ingest-result',
-      (d) => { showMsg('✅ ' + d.message, false); probeLoad(); },
-      (d) => { showMsg('❌ ' + d.message, true, d.error_code); probeLoad(); }
-    );
-  } catch (e) { showMsg('❌ 解析入库请求失败：' + e.message, true, 'INGEST_REQUEST_ERROR'); }
+  // This function is deprecated - ingest is now handled by MCP-server
+  showMsg('⚠️ 解析入库已迁移至 MCP Server，自动处理', false, 'INGEST_DEPRECATED');
 }
 
 ebLoad();

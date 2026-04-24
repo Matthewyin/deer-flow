@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -8,19 +9,13 @@ from app.services.probe_service import (
     collect_probe_data,
     get_status,
     get_history,
-    get_ingest_history,
     save_collection_log,
-    save_ingest_log,
-    parse_and_ingest_probe_data,
 )
 
 logger = logging.getLogger("data-manager")
 
 _collect_running = False
-_ingest_running = False
-
 _last_collect_result = None
-_last_ingest_result = None
 
 router = APIRouter(tags=["probe"])
 
@@ -35,11 +30,6 @@ async def probe_history(limit: int = 20):
     return get_history(limit)
 
 
-@router.get("/api/probe/ingest-history")
-async def probe_ingest_history(limit: int = 20):
-    return get_ingest_history(limit)
-
-
 @router.get("/api/probe/collect-result")
 async def probe_collect_result():
     global _collect_running, _last_collect_result
@@ -50,14 +40,25 @@ async def probe_collect_result():
     return _last_collect_result
 
 
-@router.get("/api/probe/ingest-result")
-async def probe_ingest_result():
-    global _ingest_running, _last_ingest_result
-    if _ingest_running:
-        return {"status": "running", "message": "解析入库进行中"}
-    if _last_ingest_result is None:
-        return {"status": "idle", "message": "无入库记录"}
-    return _last_ingest_result
+@router.get("/api/probe/uningested")
+async def probe_uningested():
+    """Return count of uningested raw files per region."""
+    import os
+    db_path = os.environ.get("PROBE_DB_PATH", "/app/backend/.deer-flow/db/remote_probe.db")
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT region, COUNT(*) as cnt FROM raw_files WHERE ingested = 0 GROUP BY region"
+        ).fetchall()
+        total = conn.execute("SELECT COUNT(*) as cnt FROM raw_files WHERE ingested = 0").fetchone()
+        conn.close()
+        return {
+            "total_uningested": total["cnt"] if total else 0,
+            "by_region": {r["region"]: r["cnt"] for r in rows},
+        }
+    except Exception as e:
+        return {"error": str(e), "total_uningested": 0, "by_region": {}}
 
 
 @router.post("/api/probe/collect")
@@ -74,7 +75,7 @@ async def probe_collect():
     _last_collect_result = None
 
     async def _run():
-        global _collect_running, _last_collect_result, _last_ingest_result
+        global _collect_running, _last_collect_result
         try:
             result = await asyncio.to_thread(collect_probe_data)
 
@@ -110,7 +111,7 @@ async def probe_collect():
                 "details": result,
             }
             save_collection_log(log_entry)
-            logger.info(f"Background probe collection done: {total_new} new files")
+            logger.info(f"Probe collection done: {total_new} new files (ingest handled by MCP-server)")
 
             _last_collect_result = {
                 "status": status,
@@ -121,28 +122,8 @@ async def probe_collect():
                 "error_details": error_details,
             }
 
-            if total_new > 0:
-                logger.info("Auto-triggering probe ingest after collection")
-                ingest_result = await asyncio.to_thread(parse_and_ingest_probe_data)
-                logger.info(
-                    f"Auto-ingest done: {ingest_result.get('total_inserted', 0)} inserted"
-                )
-                # 更新入库结果（供轮询接口使用）
-                _last_ingest_result = {
-                    "status": "success"
-                    if ingest_result.get("total_errors", 0) == 0
-                    else "partial",
-                    "message": f"自动入库完成：{ingest_result.get('total_inserted', 0)} 条新增，{ingest_result.get('total_skipped', 0)} 条跳过",
-                    "inserted": ingest_result.get("total_inserted", 0),
-                    "skipped": ingest_result.get("total_skipped", 0),
-                    "error_code": None
-                    if ingest_result.get("total_errors", 0) == 0
-                    else "INGEST_PARTIAL_ERROR",
-                    "error_details": ingest_result.get("errors", []),
-                }
-
         except Exception as e:
-            logger.error(f"Background probe collection failed: {e}")
+            logger.error(f"Probe collection failed: {e}")
             _last_collect_result = {
                 "status": "failed",
                 "message": f"采集异常：{str(e)}",
@@ -153,73 +134,29 @@ async def probe_collect():
             _collect_running = False
 
     asyncio.create_task(_run())
-    return {"status": "started", "message": "采集已启动，完成后将自动解析入库"}
+    return {"status": "started", "message": "采集已启动，入库由 MCP Server 统一管理"}
 
 
 @router.post("/api/probe/parse-ingest")
 async def probe_parse_ingest():
-    global _ingest_running, _last_ingest_result
-    if _ingest_running:
-        return {
-            "status": "already_running",
-            "message": "解析入库正在进行中，请稍后",
-            "error_code": "INGEST_ALREADY_RUNNING",
-        }
+    return {
+        "status": "deprecated",
+        "message": "入库操作已迁移至 MCP Server，由 ensure_probe_data 工具统一管理。此接口不再执行入库。",
+    }
 
-    _ingest_running = True
-    _last_ingest_result = None
 
-    async def _run():
-        global _ingest_running, _last_ingest_result
-        try:
-            result = await asyncio.to_thread(parse_and_ingest_probe_data)
-            total_inserted = result.get("total_inserted", 0)
-            total_parsed = result.get("total_parsed", 0)
-            total_skipped = result.get("total_skipped", 0)
-            errors = result.get("errors", [])
+@router.get("/api/probe/ingest-history")
+async def probe_ingest_history(limit: int = 20):
+    return {
+        "status": "deprecated",
+        "message": "入库操作已迁移至 MCP Server",
+        "history": [],
+    }
 
-            if errors:
-                final_status = "partial" if total_inserted > 0 else "failed"
-                error_code = (
-                    "INGEST_PARTIAL_ERROR" if total_inserted > 0 else "INGEST_FAILED"
-                )
-            else:
-                final_status = "success"
-                error_code = None
 
-            save_ingest_log(
-                {
-                    "time": datetime.now().isoformat(),
-                    "status": final_status,
-                    "total_parsed": total_parsed,
-                    "total_inserted": total_inserted,
-                    "total_skipped": total_skipped,
-                    "errors": errors,
-                }
-            )
-            logger.info(f"Manual ingest done: {total_inserted} inserted")
-
-            _last_ingest_result = {
-                "status": final_status,
-                "message": f"解析入库完成：{total_parsed} 解析，{total_inserted} 入库，{total_skipped} 跳过"
-                + (f"，{len(errors)} 个错误" if errors else ""),
-                "total_parsed": total_parsed,
-                "total_inserted": total_inserted,
-                "total_skipped": total_skipped,
-                "error_code": error_code,
-                "error_details": errors if errors else None,
-            }
-
-        except Exception as e:
-            logger.error(f"Probe ingest failed: {e}")
-            _last_ingest_result = {
-                "status": "failed",
-                "message": f"解析入库异常：{str(e)}",
-                "error_code": "INGEST_EXCEPTION",
-                "error_details": {"exception": str(e)},
-            }
-        finally:
-            _ingest_running = False
-
-    asyncio.create_task(_run())
-    return {"status": "started", "message": "解析入库已启动，请稍后查看结果"}
+@router.get("/api/probe/ingest-result")
+async def probe_ingest_result():
+    return {
+        "status": "deprecated",
+        "message": "入库操作已迁移至 MCP Server",
+    }

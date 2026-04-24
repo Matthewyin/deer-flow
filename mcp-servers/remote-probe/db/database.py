@@ -24,6 +24,8 @@ def init_db(db_path: str) -> None:
             file_size INTEGER,
             collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             file_hash TEXT,
+            ingested INTEGER DEFAULT 0,
+            ingested_at TEXT,
             UNIQUE(region, filename)
         )
     """)
@@ -107,6 +109,10 @@ def init_db(db_path: str) -> None:
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_raw_region_type
         ON raw_files(region, file_type)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_raw_ingested
+        ON raw_files(region, ingested)
     """)
 
     conn.commit()

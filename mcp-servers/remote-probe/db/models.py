@@ -154,3 +154,34 @@ def get_metric_count(conn, region: str, domain: str) -> int:
         (region, domain),
     ).fetchone()
     return row["cnt"] if row else 0
+
+
+def get_uningested_file_count(conn, region: str) -> int:
+    """Return count of uningested raw files for a given region."""
+    row = conn.execute(
+        "SELECT COUNT(*) as cnt FROM raw_files WHERE region = ? AND ingested = 0",
+        (region,),
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
+def mark_raw_files_ingested(conn, region: str) -> int:
+    """Mark all uningested raw files for a region as ingested. Returns count updated."""
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    cursor = conn.execute(
+        "UPDATE raw_files SET ingested = 1, ingested_at = ? WHERE region = ? AND ingested = 0",
+        (now, region),
+    )
+    conn.commit()
+    return cursor.rowcount
+
+
+def get_latest_metric_timestamp(conn, region: str) -> Optional[str]:
+    """Return the most recent probe_timestamp for a region, or None."""
+    row = conn.execute(
+        "SELECT MAX(probe_timestamp) as ts FROM probe_metrics WHERE region = ?",
+        (region,),
+    ).fetchone()
+    return row["ts"] if row and row["ts"] else None
