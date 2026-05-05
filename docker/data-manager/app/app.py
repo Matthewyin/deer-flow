@@ -70,10 +70,13 @@ async def lifespan(app: FastAPI):
                 except Exception as e:
                     logger.error(f"Scheduled probe collection failed: {e}")
 
-            _scheduler = BackgroundScheduler(timezone=_CST)
+            _scheduler = BackgroundScheduler(
+                timezone=_CST,
+                job_defaults={"misfire_grace_time": None, "coalesce": True},
+            )
             _scheduler.add_job(scheduled_collect, "cron", hour="11,17", minute=0, timezone=_CST)
             _scheduler.start()
-            logger.info("Probe scheduler started (Beijing 11:00, 17:00)")
+            logger.info("Probe scheduler started (Beijing 11:00, 17:00, misfire recovery enabled)")
             yield
             _scheduler.shutdown()
             _scheduler = None
