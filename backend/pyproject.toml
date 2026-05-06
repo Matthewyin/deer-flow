@@ -27,6 +27,9 @@ dependencies = [
     "langchain-ollama>=0.3",
     "langchain-chroma>=0.2",
     "pyyaml>=6.0",
+    # 文档解析（ops-knowledge 入库需要解析 docx/pdf）
+    "python-docx>=1.0",
+    "pymupdf>=1.25",
 ]
 
 [project.optional-dependencies]
