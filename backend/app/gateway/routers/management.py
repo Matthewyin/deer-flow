@@ -144,16 +144,21 @@ async def rebuild_bandwidth_vectors() -> RebuildResponse:
 async def rebuild_ops_knowledge_vectors() -> RebuildResponse:
     try:
         project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
-        persist_dir = _get_persist_dir_from_env(".deer-flow/vectors/ops_knowledge")
+
+        # 统一使用 backend bind mount 路径，确保 gateway 和 langgraph 容器读写同一份数据
+        backend_dir = project_root / "backend"
+        persist_dir = str(backend_dir / ".deer-flow" / "vectors" / "ops_knowledge")
+        ops_db = backend_dir / ".deer-flow" / "db" / "ops_knowledge.db"
+        raw_dir = str(project_root / "docs" / "ops-knowledge" / "raw")
 
         if Path(persist_dir).exists():
             logger.info(f"Removing existing vectorstore at {persist_dir}")
             shutil.rmtree(persist_dir)
 
-        ops_db = project_root / ".deer-flow" / "db" / "ops_knowledge.db"
         if ops_db.exists():
             logger.info(f"Removing metadata DB at {ops_db}")
             ops_db.unlink()
+
         ingest_script = str(project_root / "docs" / "batch_ingest_ops_knowledge.py")
 
         import subprocess
@@ -161,12 +166,21 @@ async def rebuild_ops_knowledge_vectors() -> RebuildResponse:
         venv_python = str(project_root / "backend" / ".venv" / "bin" / "python")
         python_bin = venv_python if Path(venv_python).exists() else shutil.which("python") or "python"
 
+        # 通过环境变量覆盖 batch_ingest 脚本的 config.py 默认路径
+        ingest_env = {
+            **os.environ,
+            "OPS_KNOWLEDGE_DB_PATH": str(ops_db),
+            "CHROMA_PERSIST_DIR": persist_dir,
+            "OPS_KNOWLEDGE_RAW_DIR": raw_dir,
+        }
+
         result = subprocess.run(
             [python_bin, ingest_script],
             capture_output=True,
             text=True,
             timeout=600,
             cwd=str(project_root),
+            env=ingest_env,
         )
 
         if result.returncode != 0:
