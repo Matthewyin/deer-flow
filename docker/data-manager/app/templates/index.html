@@ -109,6 +109,7 @@ th { color: #888; font-weight: 600; }
   <div class="tab" data-tab="emergency">应急预案</div>
   <div class="tab" data-tab="probe">探测数据</div>
   <div class="tab" data-tab="bandwidth">带宽策略</div>
+  <div class="tab" data-tab="line-status">线路状态</div>
 </div>
 
 <div id="message"></div>
@@ -211,6 +212,26 @@ th { color: #888; font-weight: 600; }
     </div>
   </div>
 
+  <!-- Tab 5: Line Status -->
+  <div class="panel" id="panel-line-status">
+    <div class="card">
+      <h2>线路状态日报上传</h2>
+      <div id="ls-status" style="font-size:13px;color:#888;margin-bottom:12px;"></div>
+      <div class="upload-area">
+        <input type="file" id="ls-file" accept=".html,.htm">
+        <button class="btn btn-primary" onclick="lsUpload()">上传并解析</button>
+      </div>
+      <div class="info">上传 HTML 日报文件（ECharts 图表格式），解析后保存为 JSON 供 MCP server 入库分析。</div>
+    </div>
+    <div class="card">
+      <h2>已上传文件</h2>
+      <table>
+        <thead><tr><th>日期</th><th>来源文件</th><th>线路数</th><th>解析时间</th></tr></thead>
+        <tbody id="ls-files"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -226,6 +247,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'emergency') emInit();
     if (tab.dataset.tab === 'probe') probeLoad();
     if (tab.dataset.tab === 'bandwidth') bwLoadStatus();
+    if (tab.dataset.tab === 'line-status') lsLoadStatus();
   };
 });
 
@@ -728,6 +750,58 @@ async function probeRefreshUningested() {
 }
 
 setInterval(probeRefreshUningested, 30000);
+
+async function lsLoadStatus() {
+  try {
+    const r = await fetch(API + '/api/line-status/status');
+    const d = await r.json();
+    const tbody = document.getElementById('ls-files');
+    const statusEl = document.getElementById('ls-status');
+    tbody.innerHTML = '';
+    if (d.total === 0) {
+      statusEl.innerHTML = '<span style="color:#e74c3c;">暂无已上传的日报文件</span>';
+      tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无文件</td></tr>';
+      return;
+    }
+    statusEl.innerHTML = `<strong>已上传：</strong>${d.total} 个日报文件`;
+    d.files.forEach(f => {
+      const tr = document.createElement('tr');
+      const cats = f.line_categories ? Object.entries(f.line_categories).map(([k,v]) => `${k}: ${v}`).join(', ') : '-';
+      tr.innerHTML = `<td>${f.date}</td><td>${f.source_file || '-'}</td><td>${f.total_lines}${cats ? ' (' + cats + ')' : ''}</td><td>${f.parsed_at ? fmtTime(f.parsed_at) : '-'}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { showMsg('加载线路状态失败：' + e.message, true, 'LS_LOAD_ERROR'); }
+}
+
+async function lsUpload() {
+  const fileInput = document.getElementById('ls-file');
+  if (!fileInput.files[0]) { showMsg('请选择 HTML 文件', true, 'LS_NO_FILE'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '上传中...';
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch(API + '/api/line-status/upload', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const d = await r.json();
+      showMsg('上传失败：' + (d.detail || JSON.stringify(d)), true, 'LS_UPLOAD_ERROR');
+      return;
+    }
+    const d = await r.json();
+    let msg = '解析成功：' + d.total_lines + ' 条线路';
+    const cats = d.line_categories ? Object.entries(d.line_categories).map(([k,v]) => k + ': ' + v + '条').join('、') : '';
+    if (cats) msg += '（' + cats + '）';
+    showMsg(msg, false);
+    lsLoadStatus();
+    fileInput.value = '';
+  } catch (e) {
+    showMsg('上传失败：' + e.message, true, 'LS_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '上传并解析';
+  }
+}
 
 ebLoad();
 </script>

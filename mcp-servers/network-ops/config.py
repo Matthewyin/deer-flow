@@ -170,6 +170,7 @@ class ServerConfig:
     chroma: ChromaConfig = None
     reranker: RerankerConfig = None
     llm: LLMConfig = field(default_factory=LLMConfig)
+    line_status_data_dir: str = ""
 
     def __post_init__(self):
         if self.mysql is None:
@@ -208,6 +209,10 @@ class ServerConfig:
             )
         if not isinstance(self.llm, LLMConfig):
             self.llm = LLMConfig()
+        if not self.line_status_data_dir:
+            self.line_status_data_dir = os.getenv(
+                "LINE_STATUS_DATA_DIR", "/app/.deer-flow/line-status"
+            )
 
 
 def get_config() -> ServerConfig:

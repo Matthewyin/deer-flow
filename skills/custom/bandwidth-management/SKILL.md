@@ -19,6 +19,7 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 - 提到两端站点如"亦庄到西藏"、"西五环到山东"
 - 粘贴流量监控数据或报表
 - 询问带宽相关操作流程
+- 提到"基线"、"对比"、"偏离"、"趋势分析"、"线路日报"
 
 ## 可用工具
 
@@ -29,6 +30,9 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 | `policy_search` | 搜索带宽策略文档 | ChromaDB RAG (bandwidth.md 全文) |
 | `bandwidth_stats` | 查询带宽档位统计 | SQLite + MySQL |
 | `email_generate` | 生成邮件草稿（4种模板） | 代码中引用 bandwidth.md 模板格式 |
+| `ensure_line_status_data` | 入库线路状态数据并更新基线 | JSON 文件 (共享 volume) |
+| `line_status_compare` | 实际值 vs 基线对比分析 | SQLite (network_ops.db) |
+| `line_status_history` | 查询历史趋势 | SQLite (network_ops.db) |
 
 ## 工作流程
 
@@ -75,6 +79,18 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 
 ### 流程 D：策略咨询
 1. 调用 `policy_search(query="<用户的实际问题>")` 搜索策略文档
+
+### 流程 E：基线对比分析
+
+**触发**：当用户要求分析线路运行状况、趋势、是否需要扩缩容，且不需要手动提供流量数据时。
+
+**步骤**：
+1. 调用 `ensure_line_status_data` 确保数据已入库
+2. 调用 `line_status_compare` 获取对比结果
+3. 对建议扩容的线路，调用 `line_info_query` 获取线路基本信息
+4. 对建议扩容的线路，调用 `bandwidth_assess` 评估具体带宽档位
+5. 综合基线偏差 + 带宽策略，给出最终建议
+6. 如需操作，调用 `email_generate` 生成邮件
 
 ## 语义理解要点
 

@@ -1,0 +1,237 @@
+"""线路状态 HTML 日报解析服务。
+
+解析包含 ECharts 图表的 HTML 日报，提取线路带宽/利用率/延迟数据，
+保存为结构化 JSON 文件供 MCP server 入库。
+"""
+
+import json
+import logging
+import os
+import re
+from datetime import datetime
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
+
+SHARED_DATA_DIR = os.environ.get("SHARED_DATA_DIR", "/app/.deer-flow")
+
+# 图表 ID 前缀到数据类型的映射
+CHART_TYPES = {
+    "bandwidth_traffic_": "traffic",   # 带宽流量 Kbps
+    "bandwidth_percent_": "util",       # 带宽利用率 %
+    "latency_": "latency",              # 延迟 ms
+}
+
+
+def _extract_date(filename: str) -> str:
+    """从文件名中提取日期，格式 YYYY-MM-DD。"""
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
+    if m:
+        return m.group(1)
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def _parse_chart_option(option_json: dict, chart_type: str) -> list[dict]:
+    """解析单个 ECharts option JSON，提取线路数据。
+
+    返回按线路顺序的数据列表，每项包含 line_name 和对应指标。
+    """
+    categories = option_json.get("_originalCategories", [])
+    if not categories:
+        return []
+
+    series_list = option_json.get("series", [])
+
+    peak_data = None
+    avg_data = None
+    for s in series_list:
+        if s.get("type") != "bar":
+            continue
+        name = s.get("name", "")
+        if "峰值" in name or "peak" in name.lower():
+            peak_data = s.get("data", [])
+        elif "均值" in name or "平均" in name or "avg" in name.lower():
+            avg_data = s.get("data", [])
+
+    results = []
+    for i, line_name in enumerate(categories):
+        entry = {"line_name": line_name}
+
+        if chart_type == "traffic":
+            entry["traffic_peak_kbps"] = _safe_num(peak_data, i)
+            entry["traffic_avg_kbps"] = _safe_num(avg_data, i)
+        elif chart_type == "util":
+            entry["util_peak_pct"] = _safe_num(peak_data, i)
+            entry["util_avg_pct"] = _safe_num(avg_data, i)
+        elif chart_type == "latency":
+            # 延迟图表只有峰值
+            entry["latency_peak_ms"] = _safe_num(peak_data, i)
+
+        results.append(entry)
+
+    return results
+
+
+def _safe_num(data_list: list | None, index: int) -> float | None:
+    """安全提取数值，越界或 None 返回 None。"""
+    if data_list is None or index >= len(data_list):
+        return None
+    val = data_list[index]
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_html(html_content: bytes, filename: str) -> dict:
+    """解析 HTML 日报，提取所有线路类别的状态数据。
+
+    Args:
+        html_content: HTML 文件原始字节
+        filename: 原始文件名，用于提取日期
+
+    Returns:
+        结构化数据字典，按线路类别分组
+    """
+    report_date = _extract_date(filename)
+    soup = BeautifulSoup(html_content, "html.parser")
+
+    # 收集所有 chart 的 div id → (category, chart_type) 映射
+    chart_map: dict[str, tuple[str, str]] = {}
+    for div in soup.find_all("div", id=True):
+        div_id = div["id"]
+        for prefix, ctype in CHART_TYPES.items():
+            if div_id.startswith(prefix):
+                category = div_id[len(prefix):]
+                chart_map[div_id] = (category, ctype)
+                break
+
+    # 从 script 标签提取 option JSON 并匹配 chart id
+    # line_name → {field: value} 的中间结构，按类别分组
+    category_data: dict[str, dict[str, dict]] = {}
+
+    for script in soup.find_all("script"):
+        text = script.string or ""
+        # 匹配 var option_chart_N = {...}
+        for m in re.finditer(r"var\s+(option_chart_\d+)\s*=\s*(\{.+?\})\s*;", text, re.DOTALL):
+            var_name = m.group(1)
+            json_str = m.group(2)
+
+            try:
+                option = json.loads(json_str)
+            except json.JSONDecodeError:
+                logger.warning(f"JSON 解析失败: {var_name}")
+                continue
+
+            # 通过 script 在 HTML 中的上下文找到对应的 chart id
+            # 直接从 option 中无法知道 chart id，需要从 HTML 结构推断
+            # 策略：扫描 option 前后紧邻的 div id
+            chart_id = _find_chart_id_for_var(text, var_name, chart_map)
+            if not chart_id:
+                continue
+
+            category, chart_type = chart_map[chart_id]
+            if category not in category_data:
+                category_data[category] = {}
+
+            entries = _parse_chart_option(option, chart_type)
+            for entry in entries:
+                line_name = entry["line_name"]
+                if line_name not in category_data[category]:
+                    category_data[category][line_name] = {"line_name": line_name}
+                category_data[category][line_name].update(
+                    {k: v for k, v in entry.items() if k != "line_name" and v is not None}
+                )
+
+    # 转换为目标格式
+    line_categories: dict[str, list[dict]] = {}
+    for category, lines in category_data.items():
+        line_categories[category] = sorted(lines.values(), key=lambda x: x["line_name"])
+
+    return {
+        "report_date": report_date,
+        "source_file": filename,
+        "parsed_at": datetime.now().isoformat(),
+        "line_categories": line_categories,
+    }
+
+
+def _find_chart_id_for_var(script_text: str, var_name: str, chart_map: dict) -> str | None:
+    """从 script 上下文中找到与 var 关联的 chart div id。
+
+    策略：option JSON 之前通常有 echarts.init(document.getElementById('chart_id'))。
+    在 script 标签全文中搜索 getElementById 调用，找到最近的一个。
+    """
+    # 搜索所有 getElementById 调用和 var 定义的位置
+    elem_pattern = re.compile(r"getElementById\(['\"]([^'\"]+)['\"]\)")
+    var_pos = script_text.find(var_name + " =")
+    if var_pos == -1:
+        var_pos = script_text.find(var_name + "=")
+
+    # 找到 var 定义之前最近的 getElementById
+    best_id = None
+    best_dist = float("inf")
+    for m in elem_pattern.finditer(script_text):
+        div_id = m.group(1)
+        if div_id in chart_map:
+            dist = var_pos - m.start()
+            if 0 < dist < best_dist:
+                best_dist = dist
+                best_id = div_id
+
+    return best_id
+
+
+def save_parsed_data(data: dict) -> dict:
+    """保存解析后的数据到共享 volume。
+
+    Returns:
+        保存结果，包含 saved_path 和统计信息
+    """
+    report_date = data["report_date"]
+    save_dir = Path(SHARED_DATA_DIR) / "line-status"
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    save_path = save_dir / f"{report_date}.json"
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    save_path.write_text(content, encoding="utf-8")
+
+    # 统计
+    line_categories = data.get("line_categories", {})
+    cat_counts = {cat: len(lines) for cat, lines in line_categories.items()}
+    total = sum(cat_counts.values())
+
+    return {
+        "report_date": report_date,
+        "saved_path": str(save_path),
+        "line_categories": cat_counts,
+        "total_lines": total,
+    }
+
+
+def get_status() -> dict:
+    """返回已上传的文件列表和状态。"""
+    status_dir = Path(SHARED_DATA_DIR) / "line-status"
+    if not status_dir.exists():
+        return {"files": [], "total": 0}
+
+    files = []
+    for f in sorted(status_dir.glob("*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            cat_counts = {cat: len(lines) for cat, lines in data.get("line_categories", {}).items()}
+            files.append({
+                "date": f.stem,
+                "source_file": data.get("source_file", ""),
+                "total_lines": sum(cat_counts.values()),
+                "line_categories": cat_counts,
+                "parsed_at": data.get("parsed_at", ""),
+            })
+        except (json.JSONDecodeError, KeyError):
+            files.append({"date": f.stem, "error": "解析失败"})
+
+    return {"files": files, "total": len(files)}

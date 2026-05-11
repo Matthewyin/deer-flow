@@ -17,12 +17,18 @@ from tools.bandwidth_assess import register as register_bandwidth_assess
 from tools.policy_search import register as register_policy_search
 from tools.bandwidth_stats import register as register_bandwidth_stats
 from tools.email_generate import register as register_email_generate
+from tools.line_status_ingest import register as register_line_status_ingest
+from tools.line_status_compare import register as register_line_status_compare
+from tools.line_status_history import register as register_line_status_history
 
 register_line_query(mcp)
 register_bandwidth_assess(mcp)
 register_policy_search(mcp)
 register_bandwidth_stats(mcp)
 register_email_generate(mcp)
+register_line_status_ingest(mcp)
+register_line_status_compare(mcp)
+register_line_status_history(mcp)
 
 
 if __name__ == "__main__":
