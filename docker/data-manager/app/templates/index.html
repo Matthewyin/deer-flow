@@ -225,8 +225,13 @@ th { color: #888; font-weight: 600; }
     </div>
     <div class="card">
       <h2>已上传文件</h2>
+      <div style="margin-bottom:8px;">
+        <button class="btn" onclick="lsSelectAll()" style="font-size:12px;padding:4px 10px;">全选</button>
+        <button class="btn" onclick="lsSelectNone()" style="font-size:12px;padding:4px 10px;">取消全选</button>
+        <button class="btn" onclick="lsDeleteSelected()" style="font-size:12px;padding:4px 10px;background:#e74c3c;color:#fff;border-color:#c0392b;">删除选中</button>
+      </div>
       <table>
-        <thead><tr><th>日期</th><th>来源文件</th><th>线路数</th><th>解析时间</th></tr></thead>
+        <thead><tr><th style="width:30px;"></th><th>日期</th><th>来源文件</th><th>线路数</th><th>解析时间</th></tr></thead>
         <tbody id="ls-files"></tbody>
       </table>
     </div>
@@ -760,14 +765,15 @@ async function lsLoadStatus() {
     tbody.innerHTML = '';
     if (d.total === 0) {
       statusEl.innerHTML = '<span style="color:#e74c3c;">暂无已上传的日报文件</span>';
-      tbody.innerHTML = '<tr><td colspan="4" style="color:#888;">暂无文件</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="color:#888;">暂无文件</td></tr>';
       return;
     }
     statusEl.innerHTML = `<strong>已上传：</strong>${d.total} 个日报文件`;
     d.files.forEach(f => {
       const tr = document.createElement('tr');
       const cats = f.line_categories ? Object.entries(f.line_categories).map(([k,v]) => `${k}: ${v}`).join(', ') : '-';
-      tr.innerHTML = `<td>${f.date}</td><td>${f.source_file || '-'}</td><td>${f.total_lines}${cats ? ' (' + cats + ')' : ''}</td><td>${f.parsed_at ? fmtTime(f.parsed_at) : '-'}</td>`;
+      const date = f.date || '';
+      tr.innerHTML = `<td><input type="checkbox" class="ls-date-cb" value="${date}"></td><td>${date}</td><td>${f.source_file || '-'}</td><td>${f.total_lines}${cats ? ' (' + cats + ')' : ''}</td><td>${f.parsed_at ? fmtTime(f.parsed_at) : '-'}</td>`;
       tbody.appendChild(tr);
     });
   } catch (e) { showMsg('加载线路状态失败：' + e.message, true, 'LS_LOAD_ERROR'); }
@@ -801,6 +807,29 @@ async function lsUpload() {
     btn.disabled = false;
     btn.textContent = '上传并解析';
   }
+}
+
+function lsSelectAll() {
+  document.querySelectorAll('.ls-date-cb').forEach(cb => cb.checked = true);
+}
+
+function lsSelectNone() {
+  document.querySelectorAll('.ls-date-cb').forEach(cb => cb.checked = false);
+}
+
+async function lsDeleteSelected() {
+  const dates = [...document.querySelectorAll('.ls-date-cb:checked')].map(cb => cb.value);
+  if (dates.length === 0) { showMsg('请先选择要删除的文件', true, 'LS_NO_SEL'); return; }
+  if (!confirm(`确定删除 ${dates.length} 个文件及其入库数据？`)) return;
+  try {
+    const r = await fetch(API + '/api/line-status/delete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dates})
+    });
+    const d = await r.json();
+    showMsg(`已删除 ${d.deleted.length} 个文件` + (d.not_found.length ? `，${d.not_found.length} 个未找到` : ''), false);
+    lsLoadStatus();
+  } catch (e) { showMsg('删除失败：' + e.message, true, 'LS_DEL_ERROR'); }
 }
 
 ebLoad();

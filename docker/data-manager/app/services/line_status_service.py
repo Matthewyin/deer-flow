@@ -25,11 +25,20 @@ CHART_TYPES = {
 }
 
 
-def _extract_date(filename: str) -> str:
-    """从文件名中提取日期，格式 YYYY-MM-DD。"""
+def _extract_date(filename: str, html_content: bytes = b"") -> str:
+    """从文件名或 HTML 内容中提取报告日期，格式 YYYY-MM-DD。
+
+    优先从文件名提取，其次从 HTML 内容中查找【YYYY-MM-DD】模式。
+    """
     m = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
     if m:
         return m.group(1)
+    # 从 HTML 内容提取，匹配【2026-05-10】等中文日期标记
+    if html_content:
+        text = html_content.decode("utf-8", errors="ignore")
+        m = re.search(r"【(\d{4}-\d{2}-\d{2})】", text)
+        if m:
+            return m.group(1)
     return datetime.now().strftime("%Y-%m-%d")
 
 
@@ -97,8 +106,8 @@ def parse_html(html_content: bytes, filename: str) -> dict:
     Returns:
         结构化数据字典，按线路类别分组
     """
-    report_date = _extract_date(filename)
     soup = BeautifulSoup(html_content, "html.parser")
+    report_date = _extract_date(filename, html_content)
 
     # 收集所有 chart 的 div id → (category, chart_type) 映射
     chart_map: dict[str, tuple[str, str]] = {}
@@ -235,3 +244,37 @@ def get_status() -> dict:
             files.append({"date": f.stem, "error": "解析失败"})
 
     return {"files": files, "total": len(files)}
+
+
+def delete_files(dates: list[str]) -> dict:
+    """批量删除指定日期的 JSON 文件。
+
+    同时清理 network_ops.db 中对应日期的入库记录（如果数据库可访问）。
+    """
+    status_dir = Path(SHARED_DATA_DIR) / "line-status"
+    deleted = []
+    not_found = []
+
+    for date_str in dates:
+        fp = status_dir / f"{date_str}.json"
+        if fp.exists():
+            fp.unlink()
+            deleted.append(date_str)
+        else:
+            not_found.append(date_str)
+
+    # 清理 network_ops.db 中对应日期的入库记录
+    db_path = Path("/app/backend/.deer-flow/db/network_ops.db")
+    if db_path.exists() and dates:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(db_path))
+            placeholders = ",".join("?" for _ in dates)
+            conn.execute(f"DELETE FROM line_status_baseline WHERE report_date IN ({placeholders})", dates)
+            conn.execute(f"DELETE FROM line_status_daily WHERE report_date IN ({placeholders})", dates)
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass  # 数据库不可用时静默忽略
+
+    return {"deleted": deleted, "not_found": not_found}

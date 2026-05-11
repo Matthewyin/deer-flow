@@ -1,12 +1,18 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from pydantic import BaseModel
 
 from app.services.line_status_service import (
     parse_html,
     save_parsed_data,
     get_status,
+    delete_files,
 )
 
 router = APIRouter(tags=["line-status"])
+
+
+class DeleteRequest(BaseModel):
+    dates: list[str]
 
 
 @router.get("/api/line-status/status")
@@ -28,3 +34,10 @@ async def line_status_upload(file: UploadFile = File(...)):
 
     saved = save_parsed_data(parsed)
     return saved
+
+
+@router.post("/api/line-status/delete")
+async def line_status_delete(req: DeleteRequest):
+    if not req.dates:
+        raise HTTPException(status_code=400, detail="未指定要删除的日期")
+    return delete_files(req.dates)
