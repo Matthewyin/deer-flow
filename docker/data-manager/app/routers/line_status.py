@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from app.services.line_status_service import (
     parse_html,
     save_parsed_data,
+    parse_line_table,
+    save_bandwidth_data,
     get_status,
     delete_files,
 )
@@ -33,7 +35,14 @@ async def line_status_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"HTML 解析失败: {e}")
 
     saved = save_parsed_data(parsed)
-    return saved
+
+    try:
+        bw_parsed = parse_line_table(content, file.filename or "unknown.html")
+        bw_saved = save_bandwidth_data(bw_parsed)
+    except Exception:
+        bw_saved = None
+
+    return {**saved, "bandwidth_lines": bw_saved}
 
 
 @router.post("/api/line-status/delete")

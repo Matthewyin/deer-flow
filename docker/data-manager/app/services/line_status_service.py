@@ -195,6 +195,132 @@ def _find_chart_id_for_var(script_text: str, var_name: str, chart_map: dict) -> 
     return best_id
 
 
+def _td_text(td) -> str:
+    return td.get_text(strip=True)
+
+
+def _parse_bandwidth(text: str) -> int | None:
+    if not text:
+        return None
+    m = re.search(r"(\d+)", text)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def _to_float(text: str) -> float | None:
+    if not text:
+        return None
+    try:
+        return float(text)
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(text: str) -> int | None:
+    if not text:
+        return None
+    try:
+        return int(text)
+    except (ValueError, TypeError):
+        try:
+            return int(float(text))
+        except (ValueError, TypeError):
+            return None
+
+
+def parse_line_table(html_content: bytes, filename: str) -> dict:
+    """解析 HTML 中 21 列线路明细表格。
+
+    第一列「分组」存在 rowspan，仅在分组首行出现；后续同组行省略第一个 <td>，
+    需要维护 current_group 状态跨行延续。
+    """
+    soup = BeautifulSoup(html_content, "html.parser")
+    report_date = _extract_date(filename, html_content)
+
+    target_table = None
+    for section in soup.find_all("div", class_="base_section"):
+        h3 = section.find("h3")
+        if h3 and h3.get_text(strip=True) == "线路":
+            target_table = section.find("table")
+            break
+
+    if target_table is None:
+        raise ValueError("未找到「线路」明细表格")
+
+    lines: list[dict] = []
+    current_group: str | None = None
+
+    for tr in target_table.find_all("tr"):
+        classes = tr.get("class") or []
+        if "header" in classes and "sub_header" not in classes:
+            continue
+        tds = tr.find_all("td", recursive=False)
+        if not tds:
+            continue
+
+        first_td = tds[0]
+        if first_td.has_attr("rowspan"):
+            current_group = _td_text(first_td)
+            cells = tds[1:]
+        else:
+            cells = tds
+
+        if len(cells) < 19:
+            continue
+
+        line = {
+            "line_group": current_group,
+            "line_no": _to_int(_td_text(cells[0])),
+            "province": _td_text(cells[1]),
+            "carrier": _td_text(cells[2]),
+            "usage": _td_text(cells[3]),
+            "bandwidth_mbps": _parse_bandwidth(_td_text(cells[4])),
+            "long_distance_no": _td_text(cells[5]),
+            "in_peak_mbps": _to_float(_td_text(cells[6])),
+            "in_avg_mbps": _to_float(_td_text(cells[7])),
+            "in_peak_util_pct": _to_float(_td_text(cells[8])),
+            "in_peak_time": _td_text(cells[9]),
+            "out_peak_mbps": _to_float(_td_text(cells[10])),
+            "out_avg_mbps": _to_float(_td_text(cells[11])),
+            "out_peak_util_pct": _to_float(_td_text(cells[12])),
+            "out_peak_time": _td_text(cells[13]),
+            "latency_avg_ms": _to_float(_td_text(cells[14])),
+            "bw_peak_baseline_mbps": _to_float(_td_text(cells[15])),
+            "bw_util_threshold_pct": _to_int(_td_text(cells[16])),
+            "latency_baseline_ms": _to_float(_td_text(cells[17])),
+            "latency_threshold_ms": _to_float(_td_text(cells[18])),
+        }
+        lines.append(line)
+
+    return {
+        "report_date": report_date,
+        "source_file": filename,
+        "parsed_at": datetime.now().isoformat(),
+        "total_lines": len(lines),
+        "lines": lines,
+    }
+
+
+def save_bandwidth_data(data: dict) -> dict:
+    report_date = data["report_date"]
+    save_dir = Path(SHARED_DATA_DIR) / "bandwidth-lines"
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    save_path = save_dir / f"{report_date}.json"
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    save_path.write_text(content, encoding="utf-8")
+
+    return {
+        "report_date": report_date,
+        "saved_path": str(save_path),
+        "total_lines": data.get("total_lines", 0),
+    }
+
+
 def save_parsed_data(data: dict) -> dict:
     """保存解析后的数据到共享 volume。
 
@@ -252,13 +378,21 @@ def delete_files(dates: list[str]) -> dict:
     同时清理 network_ops.db 中对应日期的入库记录（如果数据库可访问）。
     """
     status_dir = Path(SHARED_DATA_DIR) / "line-status"
+    bw_dir = Path(SHARED_DATA_DIR) / "bandwidth-lines"
     deleted = []
     not_found = []
 
     for date_str in dates:
         fp = status_dir / f"{date_str}.json"
+        bw_fp = bw_dir / f"{date_str}.json"
+        any_deleted = False
         if fp.exists():
             fp.unlink()
+            any_deleted = True
+        if bw_fp.exists():
+            bw_fp.unlink()
+            any_deleted = True
+        if any_deleted:
             deleted.append(date_str)
         else:
             not_found.append(date_str)
@@ -272,6 +406,7 @@ def delete_files(dates: list[str]) -> dict:
             placeholders = ",".join("?" for _ in dates)
             conn.execute(f"DELETE FROM line_status_baseline WHERE report_date IN ({placeholders})", dates)
             conn.execute(f"DELETE FROM line_status_daily WHERE report_date IN ({placeholders})", dates)
+            conn.execute(f"DELETE FROM bandwidth_lines WHERE report_date IN ({placeholders})", dates)
             conn.commit()
             conn.close()
         except Exception:

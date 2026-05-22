@@ -22,7 +22,7 @@
 | frontend | deer-flow-frontend | 3000 | Next.js Web UI |
 | gateway | deer-flow-gateway | 8001 | FastAPI REST API |
 | langgraph | deer-flow-langgraph | 2024 | Agent 运行时 + MCP servers |
-| data-manager | deer-flow-data-manager | 8000 | 数据采集管理 UI + 定时任务 |
+| data-manager | deer-flow-data-manager | 8003 | 数据采集管理 UI + 定时任务 |
 
 ### 关键命令
 
@@ -167,7 +167,7 @@ Agent 调用 MCP ensure_probe_data
 - `/api/langgraph/*` → langgraph:2024
 - `/api/*`（其他）→ gateway:8001
 - `/`（非 API）→ frontend:3000
-- `/data-manager/` → data-manager:8000（如有配置）
+- `/data-manager/` → data-manager:8003
 
 ## 开发验证流程
 

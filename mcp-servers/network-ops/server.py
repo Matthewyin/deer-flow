@@ -20,6 +20,8 @@ from tools.email_generate import register as register_email_generate
 from tools.line_status_ingest import register as register_line_status_ingest
 from tools.line_status_compare import register as register_line_status_compare
 from tools.line_status_history import register as register_line_status_history
+from tools.bandwidth_ingest import register as register_bandwidth_ingest
+from tools.bandwidth_check import register as register_bandwidth_check
 
 register_line_query(mcp)
 register_bandwidth_assess(mcp)
@@ -29,6 +31,8 @@ register_email_generate(mcp)
 register_line_status_ingest(mcp)
 register_line_status_compare(mcp)
 register_line_status_history(mcp)
+register_bandwidth_ingest(mcp)
+register_bandwidth_check(mcp)
 
 
 if __name__ == "__main__":
