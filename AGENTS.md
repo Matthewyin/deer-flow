@@ -58,7 +58,7 @@ skills/                                     → /app/skills             langgrap
 ```
 
 **数据文件约定**：
-- **数据文件**（probe raw、vectors、email）→ `docker/volumes/deer-flow-data/`
+- **数据文件**（probe raw、line-status JSON、bandwidth-lines JSON、vectors、email）→ `docker/volumes/deer-flow-data/`
 - **数据库文件**（remote_probe.db、business_baseline.db、ops_knowledge.db）→ `backend/.deer-flow/db/`
 - **配置文件**（extensions_config.json、config.yaml）→ 仓库根目录，`.gitignore` 排除
 
@@ -82,8 +82,13 @@ skills/                                     → /app/skills             langgrap
 独立的 FastAPI 应用，有自己的 Dockerfile 和 Python 环境（不共享 backend 的 venv）。
 
 **职责划分（已重构，务必遵守）**：
-- **data-manager**：仅负责定时 SSH 采集 → 保存 raw JSON 文件到磁盘（`ingested=0`），不做入库
-- **MCP server (remote-probe)**：负责所有入库操作（解析、基线计算），由 Agent 通过 `ensure_probe_data` 工具按需触发
+- **data-manager**：负责数据采集/上传/解析/保存到共享 volume，不直接承担 Agent 侧分析决策
+  - Probe：定时 SSH 采集 → 保存 raw JSON 文件到磁盘（`ingested=0`），不做入库
+  - Line Status：上传 HTML 日报 → 解析 ECharts 图表 → 保存 `line-status/{YYYY-MM-DD}.json`
+  - Bandwidth Lines：同一 HTML 日报中解析 21 列“线路”表格 → 保存 `bandwidth-lines/{YYYY-MM-DD}.json`
+  - Bandwidth Policy：上传 `bandwidth.md` → 覆盖策略文档 → 触发 Gateway 重建带宽 RAG
+  - EveryBusiness / Emergency：提供每日运营文本、应急预案文件的管理入口
+- **MCP server**：负责入库、查询、基线计算、P95 计算和业务判断。Probe 由 `remote-probe` 处理；带宽、线路状态、运维知识库由 `network-ops` / `ops-knowledge` 处理
 
 **定时采集**：APScheduler，北京时间 11:00 和 17:00。配置了 `misfire_grace_time=None` + `coalesce=True` 确保错过的时间点不会丢失。
 
@@ -96,7 +101,20 @@ skills/
 ├── public/    # 内置技能（git 跟踪）
 └── custom/    # 自定义技能（.gitignore 排除部分）
     ├── bandwidth-management/
+    ├── business-baseline/
+    ├── emergency-plan/
     └── probe-baseline/
+```
+
+### 带宽线路分析链路（当前主流程）
+
+```
+用户通过 data-manager 上传 HTML 日报
+  → data-manager 解析“线路”21 列表格
+  → 保存 docker/volumes/deer-flow-data/bandwidth-lines/{YYYY-MM-DD}.json
+  → Agent 调用 network-ops.ensure_bandwidth_data 入库 network_ops.db.bandwidth_lines
+  → Agent 调用 bandwidth_check 计算 15 天 P95 并判断 expand / shrink / stable
+  → 如需操作，调用 bandwidth_report 生成扩容、应急扩容或缩容邮件
 ```
 
 ## 配置文件约定

@@ -131,11 +131,11 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 }
 ```
 
-action 值：`"expand"`（需扩容）、`"shrink"`（可缩容）、`"maintain"`（维持现状）
+action 值：`"expand"`（需扩容）、`"shrink"`（可缩容）、`"stable"`（维持现状）
 
 ## 注意事项
 
-- **数据入库由 data-manager 自动完成**（上传 HTML 时触发解析），skill 只需调用 `ensure_bandwidth_data` 确保入库
+- **data-manager 只负责解析并保存 JSON**，入库由 `ensure_bandwidth_data` 扫描共享目录后写入 SQLite
 - **P95 计算在 MCP 工具层完成**，skill 不需要自行计算
 - **邮件模板在 MCP 工具层处理**，支持 3 种类型
 - 操作流程详情通过 `policy_search` 获取

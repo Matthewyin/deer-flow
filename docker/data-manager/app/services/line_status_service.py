@@ -404,7 +404,7 @@ def delete_files(dates: list[str]) -> dict:
             import sqlite3
             conn = sqlite3.connect(str(db_path))
             placeholders = ",".join("?" for _ in dates)
-            conn.execute(f"DELETE FROM line_status_baseline WHERE report_date IN ({placeholders})", dates)
+            conn.execute(f"DELETE FROM line_status_baseline WHERE as_of_date IN ({placeholders})", dates)
             conn.execute(f"DELETE FROM line_status_daily WHERE report_date IN ({placeholders})", dates)
             conn.execute(f"DELETE FROM bandwidth_lines WHERE report_date IN ({placeholders})", dates)
             conn.commit()

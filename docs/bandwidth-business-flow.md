@@ -83,21 +83,24 @@ HTML 日报（用户上传到 data-manager）
        │
        ▼
 ┌─────────────────────────────────────┐
-│ data-manager（解析 + 存储）          │
+│ data-manager（解析 + 保存 JSON）     │
 │                                     │
 │  1. 定位 <h3>线路</h3> 对应表格      │
 │  2. 解析 21 列表格数据               │
 │  3. 处理 rowspan 分组继承            │
 │  4. 提取报告日期                     │
-│  5. 写入 bandwidth_lines SQLite 表   │
+│  5. 写入共享目录 bandwidth-lines JSON│
 └─────────────────────────────────────┘
+       │
+       ▼
+ensure_bandwidth_data（network-ops MCP）
        │
        ▼
 bandwidth_lines 表（SQLite: network_ops.db）
        │
        ▼
 ┌─────────────────────────────────────┐
-│ bandwidth-management skill          │
+│ bandwidth-management skill + MCP    │
 │ （查询 + 判断 + 生成邮件）           │
 │                                     │
 │  1. 查询 SQLite（默认 15 天）        │
@@ -174,7 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
   │
   ├─ 4. 去重检查（report_date + long_distance_no）
   │
-  └─ 5. 批量 INSERT 到 bandwidth_lines 表
+  └─ 5. 保存到 /app/.deer-flow/bandwidth-lines/{YYYY-MM-DD}.json
 ```
 
 ### 5.2 关键解析规则
@@ -191,7 +194,9 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 
 ## 6. bandwidth-management skill 判断逻辑
 
-### 6.1 查询参数
+### 6.1 入库和查询参数
+
+分析前先调用 `ensure_bandwidth_data()`，由 MCP server 扫描共享目录中的 `bandwidth-lines/*.json`，将未入库日期写入 `network_ops.db.bandwidth_lines`。
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -204,29 +209,31 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 ```
 用户输入："你检查一下哪些线路带宽需要调整"
   │
-  ├─ 1. 查询 bandwidth_lines 最近 15 天数据
+  ├─ 1. 调用 ensure_bandwidth_data 入库新 JSON
+  │
+  ├─ 2. 查询 bandwidth_lines 最近 15 天数据
   │     （或用户指定的日期范围）
   │
-  ├─ 2. 按长途线路编号(long_distance_no)分组
+  ├─ 3. 按长途线路编号(long_distance_no)分组
   │
-  ├─ 3. 每条线路计算：
+  ├─ 4. 每条线路计算：
   │     ├─ P95 入峰值利用率 = percentile(in_peak_util_pct, 95)
   │     ├─ P95 出峰值利用率 = percentile(out_peak_util_pct, 95)
   │     ├─ P95 流量 = percentile(max(in_peak_mbps, out_peak_mbps), 95)
   │     └─ 当前带宽 = bandwidth_mbps
   │
-  ├─ 4. 扩容判断：
+  ├─ 5. 扩容判断：
   │     └─ P95 利用率 > 40% → 建议扩容
   │         └─ 查对照表确定目标带宽
   │
-  ├─ 5. 缩容判断：
+  ├─ 6. 缩容判断：
   │     └─ P95 流量 < 下一档带宽 × 35% → 建议缩容
   │         └─ 查对照表确定目标带宽
   │
-  ├─ 6. 延迟检查（辅助指标）：
+  ├─ 7. 延迟检查（辅助指标）：
   │     └─ 延迟均值 > 延迟阈值 → 标记异常
   │
-  └─ 7. 生成邮件建议（按 bandwidth.md 模板）
+  └─ 8. 生成邮件建议（按 bandwidth.md 模板）
 ```
 
 ### 6.3 带宽配置标准对照表
@@ -244,9 +251,8 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 
 ### 6.4 邮件模板
 
-按 bandwidth.md 中的四种模板生成：
+当前 `bandwidth_report` 支持三类报告：
 - **常态化扩容**：P95 利用率 > 40%，业务自然增长
-- **临时扩容**：重大赛事/活动预测
 - **应急扩容**：实时监控突发高负载
 - **缩容**：P95 流量持续低于下一档 × 35%
 
@@ -260,14 +266,15 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 
 | 工具 | 变更 |
 |------|------|
-| `line_status_ingest.py` | 改为调用 bandwidth_lines 表（非原 line_status 表） |
-| `line_status_compare.py` | 改为查询 bandwidth_lines + bandwidth.md 规则判断 |
-| `line_status_client.py` | 增加 bandwidth_lines 表的 CRUD 方法 |
+| `bandwidth_ingest.py` | 扫描 `bandwidth-lines/*.json` 并写入 bandwidth_lines 表 |
+| `bandwidth_check.py` | 查询 bandwidth_lines，计算 P95 并输出 expand / shrink / stable |
+| `bandwidth_lines_client.py` | bandwidth_lines 表的 SQLite CRUD |
 
-### 7.2 新增工具（建议）
+### 7.2 当前核心工具
 
 | 工具 | 职责 |
 |------|------|
+| `ensure_bandwidth_data` | 将共享目录中的 JSON 数据入库 |
 | `bandwidth_check` | 查询 bandwidth_lines，按规则判断，返回扩缩容建议 |
 | `bandwidth_report` | 生成邮件内容（按 bandwidth.md 模板） |
 
@@ -294,8 +301,8 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 |------|------|----------|
 | 1 | 在 network_ops.db 创建 bandwidth_lines 表 | `mcp-servers/network-ops/db/` |
 | 2 | data-manager 增加 21 列表格解析逻辑 | `docker/data-manager/app/services/line_status_service.py` |
-| 3 | 解析后写入 bandwidth_lines 表 | 同上 |
+| 3 | 解析后保存 `bandwidth-lines/{YYYY-MM-DD}.json` | 同上 |
 | 4 | MCP server 增加 bandwidth 查询工具 | `mcp-servers/network-ops/tools/` |
 | 5 | bandwidth-management skill 适配新逻辑 | `skills/custom/bandwidth-management/` |
-| 6 | 实现 P95 计算 + 扩缩容判断 | skill 或 MCP tool |
-| 7 | 邮件模板生成 | skill |
+| 6 | 实现 P95 计算 + 扩缩容判断 | MCP tool |
+| 7 | 邮件模板生成 | MCP tool |
