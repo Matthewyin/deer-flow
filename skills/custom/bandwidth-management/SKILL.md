@@ -32,18 +32,21 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 | `bandwidth_check` | 查询线路数据，计算 P95，判断扩缩容 | SQLite (bandwidth_lines 表) |
 | `bandwidth_report` | 根据检查结果生成邮件内容（3种模板） | bandwidth_check 结果 |
 
-### 旧版工具（仍可用）
+### 辅助工具（不得替代核心带宽流程）
 
 | 工具 | 用途 | 数据源 |
 |------|------|--------|
-| `line_info_query` | 查询专线线路信息 | MySQL (iteams_db) |
-| `bandwidth_assess` | 评估带宽是否需要扩缩容 | SQLite |
+| `line_info_query` | 查询专线基础信息 | MySQL (iteams_db) |
+| `bandwidth_assess` | 处理用户给出的单条线路、单个流量值 | SQLite |
 | `policy_search` | 搜索带宽策略文档 | ChromaDB RAG |
 | `bandwidth_stats` | 查询带宽档位统计 | SQLite + MySQL |
 | `email_generate` | 生成邮件草稿 | 代码模板 |
-| `ensure_line_status_data` | 入库线路状态数据 | JSON 文件 |
-| `line_status_compare` | 实际值 vs 基线对比 | SQLite |
-| `line_status_history` | 历史趋势查询 | SQLite |
+
+### 禁止错用的旧工具
+
+`ensure_line_status_data`、`line_status_compare`、`line_status_history` 只服务“线路状态日报”的实际值与基线对比，不用于带宽 P95、扩容、缩容、40% 阈值、带宽线路清单查询。
+
+只要用户问题中出现“带宽”“P95”“扩容”“缩容”“峰值利用率超过40%”“哪些线路超过40%”，必须使用 `ensure_bandwidth_data` 和 `bandwidth_check`，不得调用 `line_status_*`。
 
 ## 工作流程
 
@@ -74,6 +77,12 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
    ```
 
 4. **回复用户**：整合检查结果和邮件内容
+
+### 流程 A 的返回要求
+
+- 若用户要求“所有字段”，必须按 `bandwidth_check` 原始字段名返回，不得改名、合并、丢字段。
+- 筛选线路时必须基于 `bandwidth_check` 返回的 `groups[].lines[]`，不要凭上下文手工补记。
+- 需要说明筛选条件时，明确写出使用的是 `p95_in_util`、`p95_out_util` 还是 `p95_traffic`。
 
 ### 流程 B：自然语言输入（一句话）
 

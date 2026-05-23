@@ -8,7 +8,12 @@ from fastmcp import FastMCP
 
 mcp = FastMCP(
     "network-ops",
-    instructions="网络运维工具集：提供线路查询、带宽策略评估、统计查询和邮件生成能力。",
+    instructions=(
+        "网络运维工具集：提供线路查询、带宽策略评估、统计查询和邮件生成能力。"
+        "带宽、P95、扩容、缩容、峰值利用率超过40%的问题，必须优先使用 "
+        "ensure_bandwidth_data 和 bandwidth_check。line_status_* 工具只用于线路状态日报的"
+        "实际值与基线对比，不用于带宽 P95 或扩缩容判断。"
+    ),
 )
 
 
