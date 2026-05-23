@@ -113,7 +113,8 @@ skills/
   → data-manager 解析“线路”21 列表格
   → 保存 docker/volumes/deer-flow-data/bandwidth-lines/{YYYY-MM-DD}.json
   → Agent 调用 network-ops.ensure_bandwidth_data 入库 network_ops.db.bandwidth_lines
-  → Agent 调用 bandwidth_check 计算 15 天 P95 并判断 expand / shrink / stable
+  → 原始记录查询：Agent 调用 bandwidth_records_query 按日期、线路组、峰值利用率阈值返回全字段记录
+  → 扩缩容评估：Agent 调用 bandwidth_check 计算 15 天 P95 并判断 expand / shrink / stable
   → 如需操作，调用 bandwidth_report 生成扩容、应急扩容或缩容邮件
 ```
 

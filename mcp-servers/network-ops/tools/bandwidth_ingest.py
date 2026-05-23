@@ -33,7 +33,7 @@ def register(mcp: FastMCP):
         if not data_path.exists():
             return {"new_files": 0, "lines_inserted": 0, "lines_skipped": 0, "latest_date": None}
 
-        existing_dates = set(client.get_available_dates())
+        processed_files = 0
         new_files = 0
         total_inserted = 0
         total_skipped = 0
@@ -41,8 +41,6 @@ def register(mcp: FastMCP):
 
         for json_file in sorted(data_path.glob("*.json")):
             date_str = json_file.stem
-            if date_str in existing_dates:
-                continue
 
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
@@ -50,17 +48,25 @@ def register(mcp: FastMCP):
                 logger.warning(f"跳过损坏文件 {json_file.name}: {e}")
                 continue
 
-            lines = data.get("lines", [])
+            report_date = data.get("report_date") or date_str
+            lines = [
+                {**line, "report_date": line.get("report_date") or report_date}
+                for line in data.get("lines", [])
+            ]
             if lines:
                 inserted, skipped = client.ingest_data(lines)
                 total_inserted += inserted
                 total_skipped += skipped
-                new_files += 1
+                processed_files += 1
+                if inserted:
+                    new_files += 1
                 latest_date = date_str
 
         return {
+            "processed_files": processed_files,
             "new_files": new_files,
             "lines_inserted": total_inserted,
             "lines_skipped": total_skipped,
             "latest_date": latest_date,
+            "available_dates": client.get_available_dates(),
         }

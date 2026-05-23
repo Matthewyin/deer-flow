@@ -21,6 +21,7 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 - 询问带宽相关操作流程
 - 提到"基线"、"对比"、"偏离"、"趋势分析"、"线路日报"
 - 提到"P95"、"利用率"、"带宽评估"
+- 提到"线路数据"、"这几天数据"、"当前有几天数据"、"所有字段对比"
 
 ## 可用工具
 
@@ -29,6 +30,7 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 | 工具 | 用途 | 数据源 |
 |------|------|--------|
 | `ensure_bandwidth_data` | 扫描 JSON 文件入库线路带宽数据 | SQLite (bandwidth_lines 表) |
+| `bandwidth_records_query` | 查询原始带宽记录，支持日期、线路组、峰值利用率阈值过滤 | SQLite (bandwidth_lines 表) |
 | `bandwidth_check` | 查询线路数据，计算 P95，判断扩缩容 | SQLite (bandwidth_lines 表) |
 | `bandwidth_report` | 根据检查结果生成邮件内容（3种模板） | bandwidth_check 结果 |
 
@@ -44,13 +46,37 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 
 ### 禁止错用的旧工具
 
-`ensure_line_status_data`、`line_status_compare`、`line_status_history` 只服务“线路状态日报”的实际值与基线对比，不用于带宽 P95、扩容、缩容、40% 阈值、带宽线路清单查询。
+`ensure_line_status_data`、`line_status_compare`、`line_status_history` 只服务“线路状态日报”的实际值与基线对比，不用于带宽 P95、扩容、缩容、40% 阈值、带宽线路清单查询，也不用于“线路数据”“所有字段对比”。
 
-只要用户问题中出现“带宽”“P95”“扩容”“缩容”“峰值利用率超过40%”“哪些线路超过40%”，必须使用 `ensure_bandwidth_data` 和 `bandwidth_check`，不得调用 `line_status_*`。
+只要用户问题中出现“带宽”“P95”“扩容”“缩容”“峰值利用率超过40%”“哪些线路超过40%”“线路数据”“所有字段对比”，必须先调用 `ensure_bandwidth_data`，不得调用 `line_status_*`。
+
+其中：
+- 查询某一天的原始记录、返回所有字段、筛选“峰值利用率超过 40%” → 使用 `bandwidth_records_query`
+- 计算 P95、判断扩容/缩容、生成操作建议 → 使用 `bandwidth_check`
 
 ## 工作流程
 
-### 流程 A：自动带宽评估（推荐，默认流程）
+### 流程 A：原始带宽记录查询
+
+当用户要求“查看某天数据”“当前有几天数据”“对比这几天数据”“哪些线路超过40%”“返回所有字段”“原始记录”时使用。
+
+1. **确保数据已入库**：调用 `ensure_bandwidth_data`
+   ```
+   ensure_bandwidth_data()
+   ```
+
+2. **查询原始记录**：调用 `bandwidth_records_query`
+   ```
+   bandwidth_records_query(date="2026-05-22", min_peak_util_pct=40)
+   ```
+   不指定日期时，`bandwidth_records_query()` 返回当前已入库日期范围内的原始记录，并在 `available_dates` 中列出日期。
+
+3. **回复用户**：
+   - 直接基于 `records` 返回结果
+   - 用户要求“所有字段”时，按记录原字段名输出，不得改名、合并或省略
+   - `max_peak_util_pct` 和 `max_peak_direction` 是工具额外计算字段，可用于解释筛选依据
+
+### 流程 B：自动带宽评估
 
 当用户要求"评估带宽"、"看看要不要扩容"、"检查线路"等时使用。
 
@@ -78,13 +104,13 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 
 4. **回复用户**：整合检查结果和邮件内容
 
-### 流程 A 的返回要求
+### 流程 B 的返回要求
 
 - 若用户要求“所有字段”，必须按 `bandwidth_check` 原始字段名返回，不得改名、合并、丢字段。
 - 筛选线路时必须基于 `bandwidth_check` 返回的 `groups[].lines[]`，不要凭上下文手工补记。
 - 需要说明筛选条件时，明确写出使用的是 `p95_in_util`、`p95_out_util` 还是 `p95_traffic`。
 
-### 流程 B：自然语言输入（一句话）
+### 流程 C：自然语言输入（一句话）
 
 示例：`"亦庄到西藏数据端带宽使用到了5M，应该怎么办？"`
 
@@ -94,10 +120,10 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 4. **查操作流程**：`policy_search(query="扩容操作流程")`
 5. **生成邮件**：`email_generate(action=<评估结果>, ...)`
 
-### 流程 C：统计查询
+### 流程 D：统计查询
 1. `bandwidth_stats(bandwidth="10M")`
 
-### 流程 D：策略咨询
+### 流程 E：策略咨询
 1. `policy_search(query="<用户问题>")`
 
 ## 扩缩容判断规则
@@ -141,6 +167,53 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
 ```
 
 action 值：`"expand"`（需扩容）、`"shrink"`（可缩容）、`"stable"`（维持现状）
+
+## bandwidth_records_query 返回结构
+
+```json
+{
+  "query": {
+    "date": "2026-05-22",
+    "start_date": "2026-05-22",
+    "end_date": "2026-05-22",
+    "line_group": "",
+    "long_distance_no": "",
+    "min_peak_util_pct": 40,
+    "limit": 200
+  },
+  "total_matched": 11,
+  "returned": 11,
+  "records": [
+    {
+      "id": 1,
+      "report_date": "2026-05-22",
+      "line_group": "VPDN终端专线",
+      "line_no": 51,
+      "province": "浙江",
+      "carrier": "电信",
+      "usage": "数据端",
+      "bandwidth_mbps": 8,
+      "long_distance_no": "浙江51",
+      "in_peak_mbps": 5.517,
+      "in_avg_mbps": 1.23,
+      "in_peak_util_pct": 68.96,
+      "in_peak_time": "10:05",
+      "out_peak_mbps": 0.8,
+      "out_avg_mbps": 0.2,
+      "out_peak_util_pct": 10.0,
+      "out_peak_time": "11:20",
+      "latency_avg_ms": 24.3,
+      "bw_peak_baseline_mbps": 4.0,
+      "bw_util_threshold_pct": 40,
+      "latency_baseline_ms": 30,
+      "latency_threshold_ms": 50,
+      "created_at": "2026-05-23 10:00:00",
+      "max_peak_util_pct": 68.96,
+      "max_peak_direction": "in"
+    }
+  ]
+}
+```
 
 ## 注意事项
 

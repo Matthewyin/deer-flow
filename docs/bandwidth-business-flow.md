@@ -101,13 +101,11 @@ bandwidth_lines 表（SQLite: network_ops.db）
        ▼
 ┌─────────────────────────────────────┐
 │ bandwidth-management skill + MCP    │
-│ （查询 + 判断 + 生成邮件）           │
+│ （原始查询 + 判断 + 生成邮件）       │
 │                                     │
-│  1. 查询 SQLite（默认 15 天）        │
-│  2. 按线路编号聚合                   │
-│  3. 计算 P95 利用率                  │
-│  4. 对比扩缩容阈值                   │
-│  5. 生成邮件建议                     │
+│  1. 原始记录查询：bandwidth_records_query │
+│  2. P95 评估：bandwidth_check       │
+│  3. 邮件生成：bandwidth_report      │
 └─────────────────────────────────────┘
 ```
 
@@ -144,7 +142,7 @@ CREATE TABLE IF NOT EXISTS bandwidth_lines (
     latency_baseline_ms REAL,           -- 延迟基线(ms)
     latency_threshold_ms REAL,          -- 延迟阈值(ms)
     created_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(report_date, long_distance_no)  -- 每天每条线路唯一
+    UNIQUE(report_date, line_group, line_no)  -- 每天每个表格行唯一
 );
 ```
 
@@ -175,7 +173,7 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
   │     ├─ 解析 21 列字段值
   │     └─ 带宽字段：解析 "6M" → 6
   │
-  ├─ 4. 去重检查（report_date + long_distance_no）
+  ├─ 4. 去重检查（report_date + line_group + line_no）
   │
   └─ 5. 保存到 /app/.deer-flow/bandwidth-lines/{YYYY-MM-DD}.json
 ```
@@ -196,7 +194,7 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 
 ### 6.1 入库和查询参数
 
-分析前先调用 `ensure_bandwidth_data()`，由 MCP server 扫描共享目录中的 `bandwidth-lines/*.json`，将未入库日期写入 `network_ops.db.bandwidth_lines`。
+分析前先调用 `ensure_bandwidth_data()`，由 MCP server 扫描共享目录中的 `bandwidth-lines/*.json`，将尚未入库的记录写入 `network_ops.db.bandwidth_lines`。JSON 的报告日期位于文件顶层，入库时会补到每条线路记录的 `report_date` 字段。
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -236,6 +234,21 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
   └─ 8. 生成邮件建议（按 bandwidth.md 模板）
 ```
 
+### 6.3 原始记录查询流程
+
+```
+用户输入："5月22日哪些线路峰值利用率超过40%，返回所有字段"
+  │
+  ├─ 1. 调用 ensure_bandwidth_data 入库新 JSON
+  │
+  ├─ 2. 调用 bandwidth_records_query
+  │     ├─ date = "2026-05-22"
+  │     ├─ min_peak_util_pct = 40
+  │     └─ 返回 bandwidth_lines 全字段
+  │
+  └─ 3. 按 records 原始字段输出，不由模型改名、合并或补字段
+```
+
 ### 6.3 带宽配置标准对照表
 
 | 当前带宽 | 扩容触发 (>40%) | 扩容目标 | 缩容触发 (<下一档×35%) | 缩容目标 |
@@ -266,7 +279,8 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 
 | 工具 | 变更 |
 |------|------|
-| `bandwidth_ingest.py` | 扫描 `bandwidth-lines/*.json` 并写入 bandwidth_lines 表 |
+| `bandwidth_ingest.py` | 扫描 `bandwidth-lines/*.json`，补齐每条记录的 `report_date`，并写入 bandwidth_lines 表 |
+| `bandwidth_records_query.py` | 按日期、线路组、线路编号、峰值利用率阈值查询原始全字段记录 |
 | `bandwidth_check.py` | 查询 bandwidth_lines，计算 P95 并输出 expand / shrink / stable |
 | `bandwidth_lines_client.py` | bandwidth_lines 表的 SQLite CRUD |
 
@@ -275,6 +289,7 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 | 工具 | 职责 |
 |------|------|
 | `ensure_bandwidth_data` | 将共享目录中的 JSON 数据入库 |
+| `bandwidth_records_query` | 返回 bandwidth_lines 原始记录全字段，并附加 `max_peak_util_pct` / `max_peak_direction` |
 | `bandwidth_check` | 查询 bandwidth_lines，按规则判断，返回扩缩容建议 |
 | `bandwidth_report` | 生成邮件内容（按 bandwidth.md 模板） |
 
@@ -285,7 +300,7 @@ CREATE INDEX IF NOT EXISTS idx_bl_date_ldn ON bandwidth_lines(report_date, long_
 | 项目 | 旧方案 | 新方案 |
 |------|--------|--------|
 | 数据来源 | ECharts 图表 JSON | HTML 21 列表格 |
-| 标识字段 | line_name（从 ECharts 提取） | long_distance_no（长途线路编号） |
+| 标识字段 | line_name（从 ECharts 提取） | report_date + line_group + line_no，long_distance_no 保留为业务字段且允许为空 |
 | 存储位置 | line_status 表 | bandwidth_lines 表 |
 | 字段数量 | ~6 个 | 20 个（完整 21 列减去分组） |
 | MySQL 依赖 | 需要 lines_info 表匹配 | **无 MySQL 依赖** |

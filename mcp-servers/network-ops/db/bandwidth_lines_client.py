@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS bandwidth_lines (
     latency_baseline_ms REAL,
     latency_threshold_ms REAL,
     created_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(report_date, long_distance_no)
+    UNIQUE(report_date, line_group, line_no)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bl_date ON bandwidth_lines(report_date);
@@ -77,6 +77,71 @@ _COLUMNS = [
     "latency_threshold_ms",
 ]
 
+_ALL_COLUMNS = ["id", *_COLUMNS, "created_at"]
+
+_CREATE_MIGRATION_TABLE_SQL = """
+CREATE TABLE bandwidth_lines_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_date TEXT NOT NULL,
+    line_group TEXT NOT NULL,
+    line_no INTEGER NOT NULL,
+    province TEXT,
+    carrier TEXT,
+    usage TEXT,
+    bandwidth_mbps INTEGER,
+    long_distance_no TEXT,
+    in_peak_mbps REAL,
+    in_avg_mbps REAL,
+    in_peak_util_pct REAL,
+    in_peak_time TEXT,
+    out_peak_mbps REAL,
+    out_avg_mbps REAL,
+    out_peak_util_pct REAL,
+    out_peak_time TEXT,
+    latency_avg_ms REAL,
+    bw_peak_baseline_mbps REAL,
+    bw_util_threshold_pct INTEGER,
+    latency_baseline_ms REAL,
+    latency_threshold_ms REAL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(report_date, line_group, line_no)
+);
+"""
+
+
+def _get_unique_index_columns(conn: sqlite3.Connection) -> list[list[str]]:
+    indexes = conn.execute("PRAGMA index_list(bandwidth_lines)").fetchall()
+    unique_columns = []
+    for index in indexes:
+        if not index[2]:
+            continue
+        rows = conn.execute(f"PRAGMA index_info({index[1]})").fetchall()
+        unique_columns.append([row[2] for row in rows])
+    return unique_columns
+
+
+def _ensure_unique_key(conn: sqlite3.Connection) -> None:
+    desired = ["report_date", "line_group", "line_no"]
+    if desired in _get_unique_index_columns(conn):
+        return
+
+    logger.info("Migrating bandwidth_lines unique key to report_date + line_group + line_no")
+    columns_sql = ", ".join(_ALL_COLUMNS)
+    conn.execute("ALTER TABLE bandwidth_lines RENAME TO bandwidth_lines_old")
+    conn.execute(_CREATE_MIGRATION_TABLE_SQL)
+    conn.execute(
+        f"INSERT OR IGNORE INTO bandwidth_lines_new ({columns_sql}) "
+        f"SELECT {columns_sql} FROM bandwidth_lines_old"
+    )
+    conn.execute("DROP TABLE bandwidth_lines_old")
+    conn.execute("ALTER TABLE bandwidth_lines_new RENAME TO bandwidth_lines")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_date ON bandwidth_lines(report_date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_bl_ldn ON bandwidth_lines(long_distance_no)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bl_date_ldn "
+        "ON bandwidth_lines(report_date, long_distance_no)"
+    )
+
 
 class BandwidthLinesClient:
     def __init__(self, db_path: str):
@@ -84,6 +149,7 @@ class BandwidthLinesClient:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(_CREATE_TABLES_SQL)
+            _ensure_unique_key(conn)
 
     def ingest_data(self, rows: list[dict]) -> tuple[int, int]:
         """批量入库，返回 (inserted, skipped)。"""
@@ -130,6 +196,33 @@ class BandwidthLinesClient:
                 "SELECT DISTINCT report_date FROM bandwidth_lines ORDER BY report_date"
             ).fetchall()
             return [r[0] for r in rows]
+
+    def query_records(
+        self,
+        start_date: str,
+        end_date: str,
+        line_group: str | None = None,
+        long_distance_no: str | None = None,
+    ) -> list[dict]:
+        """按日期范围查询原始带宽记录，返回 bandwidth_lines 全字段。"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            query = (
+                "SELECT * FROM bandwidth_lines "
+                "WHERE report_date >= ? AND report_date <= ?"
+            )
+            params: list = [start_date, end_date]
+
+            if line_group:
+                query += " AND line_group = ?"
+                params.append(line_group)
+
+            if long_distance_no:
+                query += " AND long_distance_no = ?"
+                params.append(long_distance_no)
+
+            query += " ORDER BY report_date, line_no"
+            return [dict(row) for row in conn.execute(query, params).fetchall()]
 
     def delete_by_dates(self, dates: list[str]) -> int:
         """删除指定日期的数据，返回删除的行数。"""
