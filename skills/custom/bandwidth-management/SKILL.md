@@ -70,6 +70,8 @@ description: 带宽管理技能。当用户咨询专线带宽相关问题（扩�
    bandwidth_records_query(date="2026-05-22", min_peak_util_pct=40)
    ```
    不指定日期时，`bandwidth_records_query()` 返回当前已入库日期范围内的原始记录，并在 `available_dates` 中列出日期。
+   用户说“库内所有日期”时，不要反问时间范围，直接不传日期或使用 `available_dates` 覆盖范围。
+   用户给多个线路编号时，可以把多个 `long_distance_no` 用空格、逗号或分号传入；工具支持短编号模糊匹配，例如 `ETN2419NP ETN2420NP` 可匹配 `北京南京ETN2419NP`、`北京南京ETN2420NP`。
 
 3. **回复用户**：
    - 直接基于 `records` 返回结果
@@ -218,6 +220,7 @@ action 值：`"expand"`（需扩容）、`"shrink"`（可缩容）、`"stable"`�
 ## 注意事项
 
 - **data-manager 只负责解析并保存 JSON**，入库由 `ensure_bandwidth_data` 扫描共享目录后写入 SQLite
+- 用户要求“库内所有日期”且目标线路数量很少时，直接查全部可用日期，不要以“数据量可能过大”为由拒绝。
 - **P95 计算在 MCP 工具层完成**，skill 不需要自行计算
 - **邮件模板在 MCP 工具层处理**，支持 3 种类型
 - 操作流程详情通过 `policy_search` 获取

@@ -53,7 +53,7 @@ def register(mcp: FastMCP):
             start_date: 开始日期（YYYY-MM-DD）。
             end_date: 结束日期（YYYY-MM-DD）。
             line_group: 线路组过滤，空则不过滤。
-            long_distance_no: 线路编号过滤，空则不过滤。
+            long_distance_no: 线路编号过滤，支持短编号模糊匹配；多个编号可用空格、逗号或分号分隔。
             min_peak_util_pct: 峰值利用率下限，按 in/out 较大值过滤。
             limit: 返回记录上限，默认 200。
 

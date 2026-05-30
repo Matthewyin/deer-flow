@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -78,6 +79,14 @@ _COLUMNS = [
 ]
 
 _ALL_COLUMNS = ["id", *_COLUMNS, "created_at"]
+
+
+def _split_long_distance_no_terms(value: str) -> list[str]:
+    return [
+        term.strip()
+        for term in re.split(r"[\s,，;；]+", value)
+        if term.strip()
+    ]
 
 _CREATE_MIGRATION_TABLE_SQL = """
 CREATE TABLE bandwidth_lines_new (
@@ -218,8 +227,13 @@ class BandwidthLinesClient:
                 params.append(line_group)
 
             if long_distance_no:
-                query += " AND long_distance_no = ?"
-                params.append(long_distance_no)
+                terms = _split_long_distance_no_terms(long_distance_no)
+                if terms:
+                    clauses = []
+                    for term in terms:
+                        clauses.append("(long_distance_no = ? OR long_distance_no LIKE ?)")
+                        params.extend([term, f"%{term}%"])
+                    query += " AND (" + " OR ".join(clauses) + ")"
 
             query += " ORDER BY report_date, line_no"
             return [dict(row) for row in conn.execute(query, params).fetchall()]
