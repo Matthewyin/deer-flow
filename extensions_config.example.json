@@ -3,7 +3,7 @@
     "network-ops": {
       "enabled": false,
       "type": "stdio",
-      "command": "/app/backend/.venv/bin/python",
+      "command": "/opt/venv/bin/python",
       "args": ["/app/mcp-servers/network-ops/server.py"],
       "env": {
         "MYSQL_HOST": "host.docker.internal",
@@ -21,7 +21,7 @@
     "ops-knowledge": {
       "enabled": false,
       "type": "stdio",
-      "command": "/app/backend/.venv/bin/python",
+      "command": "/opt/venv/bin/python",
       "args": ["/app/mcp-servers/ops-knowledge/server.py"],
       "env": {
         "OPS_KNOWLEDGE_DB_PATH": ".deer-flow/db/ops_knowledge.db",
@@ -58,7 +58,7 @@
     "business-baseline": {
       "enabled": false,
       "type": "stdio",
-      "command": "/app/backend/.venv/bin/python",
+      "command": "/opt/venv/bin/python",
       "args": ["/app/mcp-servers/business-baseline/server.py"],
       "env": {
         "BUSINESS_BASELINE_DB_PATH": ".deer-flow/db/business_baseline.db",
@@ -66,6 +66,16 @@
         "REPORT_SEPARATOR": "$REPORT_SEPARATOR"
       },
       "description": "业务基线监控：解析每日运营报告、查询基线、偏差对比、趋势分析"
+    },
+    "world-cup": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "/opt/venv/bin/python",
+      "args": ["/app/mcp-servers/world-cup/server.py"],
+      "env": {
+        "WORLD_CUP_DB_PATH": "/app/backend/.deer-flow/db/world_cup.db"
+      },
+      "description": "世界杯保障数据分析：查询每小时数据、汇总峰值波动、生成保障日报"
     },
     "postgres": {
       "enabled": false,

@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi import Request
 from zoneinfo import ZoneInfo
 
-from app.routers import everybusiness, emergency, probe, bandwidth, line_status
+from app.routers import everybusiness, emergency, probe, bandwidth, line_status, world_cup
 
 _CST = ZoneInfo("Asia/Shanghai")
 
@@ -95,6 +95,7 @@ app.include_router(emergency.router)
 app.include_router(probe.router)
 app.include_router(bandwidth.router)
 app.include_router(line_status.router)
+app.include_router(world_cup.router)
 
 templates = Jinja2Templates(directory="app/templates")
 

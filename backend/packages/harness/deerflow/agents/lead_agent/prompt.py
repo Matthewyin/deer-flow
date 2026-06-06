@@ -172,6 +172,7 @@ SYSTEM_PROMPT_TEMPLATE = """
 You are {agent_name}, an open-source super agent.
 </role>
 
+{user_profile}
 {soul}
 {memory_context}
 
@@ -444,6 +445,20 @@ def get_agent_soul(agent_name: str | None) -> str:
     return ""
 
 
+def get_user_profile() -> str:
+    try:
+        from deerflow.config.paths import get_paths
+
+        user_md_path = get_paths().user_md_file
+        if not user_md_path.exists():
+            return ""
+        content = user_md_path.read_text(encoding="utf-8").strip()
+        return f"<user_profile>\n{content}\n</user_profile>\n" if content else ""
+    except Exception:
+        logger.exception("Failed to load USER.md for prompt injection")
+        return ""
+
+
 def get_deferred_tools_prompt_section() -> str:
     """Generate <available-deferred-tools> block for the system prompt.
 
@@ -551,6 +566,7 @@ def apply_prompt_template(subagent_enabled: bool = False, max_concurrent_subagen
     # Format the prompt with dynamic skills and memory
     prompt = SYSTEM_PROMPT_TEMPLATE.format(
         agent_name=agent_name or "DeerFlow 2.0",
+        user_profile=get_user_profile(),
         soul=get_agent_soul(agent_name),
         skills_section=skills_section,
         deferred_tools_section=deferred_tools_section,

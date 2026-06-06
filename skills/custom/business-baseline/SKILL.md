@@ -27,10 +27,10 @@ description: 业务基线监控技能。涵盖XXX全业务平台27项IT性能指
 | 工具 | 用途 | 数据源 |
 |------|------|--------|
 | `parse_daily_report` | 解析 everybusiness 文件，27项指标入库 | 文件 → SQLite |
-| `query_current_data` | 查询最新一天完整指标数据 | SQLite (metrics) |
+| `query_current_data` | 查询最新一天或指定单日完整指标数据 | SQLite (metrics) |
 | `query_baseline` | 查询全历史平均基线 | SQLite (baseline) |
 | `compare_with_baseline` | **核心工具**：最新数据 vs 基线全量对比 | SQLite (metrics + baseline) |
-| `query_history_trend` | 查询指定指标历史趋势 | SQLite (metrics) |
+| `query_history_trend` | 查询指定指标最近 N 个报告日期的历史趋势 | SQLite (metrics) |
 | `get_interpretation` | 获取指标解读标准 | 内置常量 |
 
 ## 指标解读标准
@@ -125,7 +125,7 @@ description: 业务基线监控技能。涵盖XXX全业务平台27项IT性能指
 
 1. **查询历史趋势**：
    ```
-   query_history_trend(metric_key="lotto_sell", days=30)
+   query_history_trend(metric_key="lotto_sell", limit=30)
    ```
 
 2. **输出时间序列 + 周期性分析**：
@@ -156,7 +156,7 @@ description: 业务基线监控技能。涵盖XXX全业务平台27项IT性能指
 
 1. **查询当前数据**：
    ```
-   query_current_data()
+   query_current_data(report_date="YYYY-MM-DD")
    ```
    - 不传 metric_key 返回全部27项指标
 
@@ -211,12 +211,14 @@ description: 业务基线监控技能。涵盖XXX全业务平台27项IT性能指
 
 - "看看业务基线" → parse_daily_report() + compare_with_baseline()
 - "今天的数据正常吗" → parse_daily_report() + compare_with_baseline() + get_interpretation()
-- "乐透TPS趋势" → query_history_trend(metric_key="lotto_sell", days=30)
+- "乐透TPS趋势" → query_history_trend(metric_key="lotto_sell", limit=30)
 - "支付中心响应时间" → query_current_data(metric_key="payment")
-- "终端数历史" → query_history_trend(metric_key="online_terminals", days=30)
+- "终端数历史" → query_history_trend(metric_key="online_terminals", limit=30)
 - "技术失败多少算正常" → get_interpretation()
 - "昨天兑奖数据" → query_current_data()
 - "合作渠道响应时间标准" → get_interpretation(metric_key="partner")
+- "最近3天在线终端数" → query_history_trend(metric_key="online_terminals", limit=3)，不要用 query_current_data
+- 带有"最近N天"、"历史"、"趋势"、"连续几天"的问题，一律调用 query_history_trend；query_current_data 只用于最新一天或明确指定的单日
 
 ## 输出规范
 

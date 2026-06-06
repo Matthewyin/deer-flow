@@ -519,7 +519,7 @@ Agent:
 "business-baseline": {
   "enabled": true,
   "type": "stdio",
-  "command": "/app/backend/.venv/bin/python",
+  "command": "/opt/venv/bin/python",
   "args": ["/app/mcp-servers/business-baseline/server.py"],
   "env": {
     "BUSINESS_DB_PATH": ".deer-flow/db/business_baseline.db",

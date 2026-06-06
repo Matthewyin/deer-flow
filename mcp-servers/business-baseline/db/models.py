@@ -92,7 +92,18 @@ def get_all_baselines(conn, metric_key: Optional[str] = None) -> list[dict]:
 
 def get_metrics_for_key(conn, metric_key: str, limit: int = 30) -> list[dict]:
     rows = conn.execute(
-        "SELECT * FROM metrics WHERE metric_key = ? ORDER BY report_date DESC LIMIT ?",
+        """
+        SELECT *
+        FROM metrics
+        WHERE metric_key = ?
+          AND report_date IN (
+              SELECT report_date
+              FROM daily_reports
+              ORDER BY report_date DESC
+              LIMIT ?
+          )
+        ORDER BY report_date DESC, category, metric_key, sub_name
+        """,
         (metric_key, limit),
     ).fetchall()
     return [dict(r) for r in rows]

@@ -110,6 +110,7 @@ th { color: #888; font-weight: 600; }
   <div class="tab" data-tab="probe">探测数据</div>
   <div class="tab" data-tab="bandwidth">带宽策略</div>
   <div class="tab" data-tab="line-status">线路状态</div>
+  <div class="tab" data-tab="world-cup">世界杯数据</div>
 </div>
 
 <div id="message"></div>
@@ -237,6 +238,26 @@ th { color: #888; font-weight: 600; }
     </div>
   </div>
 
+  <!-- Tab 6: World Cup -->
+  <div class="panel" id="panel-world-cup">
+    <div class="card">
+      <h2>世界杯数据上传</h2>
+      <div id="wc-status" style="font-size:13px;color:#888;margin-bottom:12px;"></div>
+      <div class="upload-area">
+        <input type="file" id="wc-file" accept=".xlsx">
+        <button class="btn btn-primary" onclick="wcUpload()">上传解析入库</button>
+      </div>
+      <div class="info">每次上传都会先清空旧数据和旧文件，再保存原始 Excel、生成标准化 Excel 和解析 JSON 快照，并写入 /app/backend/.deer-flow/db/world_cup.db。</div>
+    </div>
+    <div class="card">
+      <h2>已导入批次</h2>
+      <table>
+        <thead><tr><th>上传批次</th><th>来源文件</th><th>Sheet</th><th>记录数</th><th>上传时间</th><th></th></tr></thead>
+        <tbody id="wc-uploads"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -253,6 +274,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'probe') probeLoad();
     if (tab.dataset.tab === 'bandwidth') bwLoadStatus();
     if (tab.dataset.tab === 'line-status') lsLoadStatus();
+    if (tab.dataset.tab === 'world-cup') wcLoadStatus();
   };
 });
 
@@ -337,6 +359,19 @@ async function ebSubmit() {
       } else {
         showMsg(msg, false);
       }
+    } else {
+      showMsg('❌ 保存失败：' + d.error, true, 'EB_SAVE_ERROR');
+    }
+  } catch (e) {
+    showMsg('❌ 提交失败：' + e.message, true, 'EB_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '提交并解析';
+  }
+}
+
+function ebClear() { document.getElementById('eb-content').value = ''; }
+
 async function bwLoadStatus() {
   try {
     const r = await fetch(API + '/api/bandwidth/status');
@@ -399,20 +434,6 @@ async function bwRebuild() {
     btn.textContent = '手动重建向量库';
   }
 }
-
-ebLoad();
-    } else {
-      showMsg('❌ 保存失败：' + d.error, true, 'EB_SAVE_ERROR');
-    }
-  } catch (e) {
-    showMsg('❌ 提交失败：' + e.message, true, 'EB_NETWORK_ERROR');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '提交并解析';
-  }
-}
-
-function ebClear() { document.getElementById('eb-content').value = ''; }
 
 async function emInit() {
   try {
@@ -830,6 +851,79 @@ async function lsDeleteSelected() {
     showMsg(`已删除 ${d.deleted.length} 个文件` + (d.not_found.length ? `，${d.not_found.length} 个未找到` : ''), false);
     lsLoadStatus();
   } catch (e) { showMsg('删除失败：' + e.message, true, 'LS_DEL_ERROR'); }
+}
+
+function wcEscape(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function wcLoadStatus() {
+  try {
+    const r = await fetch(API + '/api/world-cup/status');
+    const d = await r.json();
+    const statusEl = document.getElementById('wc-status');
+    const tbody = document.getElementById('wc-uploads');
+    const range = d.date_range && d.date_range.start
+      ? `${d.date_range.start} 至 ${d.date_range.end}`
+      : '暂无日期';
+    statusEl.innerHTML = `<strong>数据库：</strong>${wcEscape(d.db_path || '-')}<br>
+      <strong>导入批次：</strong>${d.upload_count || 0}，<strong>指标记录：</strong>${d.metric_count || 0}，<strong>日期范围：</strong>${wcEscape(range)}`;
+    tbody.innerHTML = '';
+    const uploads = d.uploads || [];
+    if (uploads.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">暂无导入数据</td></tr>';
+      return;
+    }
+    uploads.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${wcEscape(u.upload_id)}</td><td>${wcEscape(u.source_filename)}</td>
+        <td>${u.sheet_count || 0}</td><td>${u.record_count || 0}</td><td>${wcEscape(u.uploaded_at || '-')}</td>
+        <td><button class="btn btn-danger btn-sm">删除</button></td>`;
+      tr.querySelector('button').onclick = () => wcDelete(u.upload_id);
+      tbody.appendChild(tr);
+    });
+  } catch (e) { showMsg('加载世界杯数据状态失败：' + e.message, true, 'WC_LOAD_ERROR'); }
+}
+
+async function wcUpload() {
+  const fileInput = document.getElementById('wc-file');
+  if (!fileInput.files[0]) { showMsg('请选择 .xlsx 文件', true, 'WC_NO_FILE'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '入库中...';
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch(API + '/api/world-cup/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) {
+      showMsg('导入失败：' + (d.detail || JSON.stringify(d)), true, 'WC_UPLOAD_ERROR');
+      return;
+    }
+    const cleared = d.cleared ? `，已清除旧批次 ${d.cleared.cleared_uploads || 0} 个、旧记录 ${d.cleared.cleared_metrics || 0} 条` : '';
+    showMsg(`导入成功：${d.sheet_count || 0} 个 sheet，${d.record_count || 0} 条记录${cleared}`, false);
+    fileInput.value = '';
+    wcLoadStatus();
+  } catch (e) {
+    showMsg('导入失败：' + e.message, true, 'WC_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '上传解析入库';
+  }
+}
+
+async function wcDelete(uploadId) {
+  if (!confirm('确认删除该导入批次？')) return;
+  try {
+    const r = await fetch(API + '/api/world-cup/uploads/' + encodeURIComponent(uploadId), { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) {
+      showMsg('删除失败：' + (d.detail || JSON.stringify(d)), true, 'WC_DELETE_ERROR');
+      return;
+    }
+    showMsg('已删除导入批次：' + uploadId, false);
+    wcLoadStatus();
+  } catch (e) { showMsg('删除失败：' + e.message, true, 'WC_NETWORK_ERROR'); }
 }
 
 ebLoad();

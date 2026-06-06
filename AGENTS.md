@@ -58,15 +58,15 @@ skills/                                     → /app/skills             langgrap
 ```
 
 **数据文件约定**：
-- **数据文件**（probe raw、line-status JSON、bandwidth-lines JSON、vectors、email）→ `docker/volumes/deer-flow-data/`
-- **数据库文件**（remote_probe.db、business_baseline.db、ops_knowledge.db）→ `backend/.deer-flow/db/`
+- **数据文件**（probe raw、line-status JSON、bandwidth-lines JSON、world-cup raw/parsed、vectors、email）→ `docker/volumes/deer-flow-data/`
+- **数据库文件**（remote_probe.db、business_baseline.db、ops_knowledge.db、network_ops.db、world_cup.db）→ `backend/.deer-flow/db/`
 - **配置文件**（extensions_config.json、config.yaml）→ 仓库根目录，`.gitignore` 排除
 
 ## 定制子系统
 
 ### MCP Servers（`mcp-servers/`）
 
-独立的 MCP server 进程，通过 stdio 与 LangGraph Agent 通信。运行在 **langgraph 容器**内，使用 `backend/.venv` 的 Python。
+独立的 MCP server 进程，通过 stdio 与 LangGraph Agent 通信。运行在 **langgraph 容器**内，使用镜像内预装的 `/opt/venv/bin/python`。不要使用 `/app/backend/.venv/bin/python`，因为 `backend/` 是宿主机 bind mount，里面的 `.venv` 可能是 macOS 本地环境，容器内不可执行。
 
 | Server | 入口 | 数据库 | 职责 |
 |--------|------|--------|------|
@@ -74,6 +74,7 @@ skills/                                     → /app/skills             langgrap
 | business-baseline | `server.py` | `business_baseline.db` | 每日运营报告解析、基线对比、趋势分析 |
 | ops-knowledge | `server.py` | `ops_knowledge.db` | 运维知识库入库与检索 |
 | network-ops | `server.py` | `network_ops.db` | 网络运维工具集 |
+| world-cup | `server.py` | `world_cup.db` | 世界杯数据查询、峰值波动汇总、保障日报生成 |
 
 **MCP server 的环境变量**来自 `extensions_config.json` 中的 `env` 字段。路径使用**相对路径**（基于 langgraph 进程 CWD 解析），不是绝对路径。
 
@@ -87,8 +88,9 @@ skills/                                     → /app/skills             langgrap
   - Line Status：上传 HTML 日报 → 解析 ECharts 图表 → 保存 `line-status/{YYYY-MM-DD}.json`
   - Bandwidth Lines：同一 HTML 日报中解析 21 列“线路”表格 → 保存 `bandwidth-lines/{YYYY-MM-DD}.json`
   - Bandwidth Policy：上传 `bandwidth.md` → 覆盖策略文档 → 触发 Gateway 重建带宽 RAG
+  - WorldCup：上传 Excel → 清空旧世界杯数据 → 将旧格式标准化为当前格式 → 解析当前支持的世界杯 sheet → 保存 raw/normalized/parsed 文件 → 直接写入 `world_cup.db`
   - EveryBusiness / Emergency：提供每日运营文本、应急预案文件的管理入口
-- **MCP server**：负责入库、查询、基线计算、P95 计算和业务判断。Probe 由 `remote-probe` 处理；带宽、线路状态、运维知识库由 `network-ops` / `ops-knowledge` 处理
+- **MCP server**：负责入库、查询、基线计算、P95 计算和业务判断。Probe 由 `remote-probe` 处理；带宽、线路状态、运维知识库由 `network-ops` / `ops-knowledge` 处理；WorldCup 只查询、汇总、生成报告，不负责 Excel 入库
 
 **定时采集**：APScheduler，北京时间 11:00 和 17:00。配置了 `misfire_grace_time=None` + `coalesce=True` 确保错过的时间点不会丢失。
 
@@ -103,7 +105,8 @@ skills/
     ├── bandwidth-management/
     ├── business-baseline/
     ├── emergency-plan/
-    └── probe-baseline/
+    ├── probe-baseline/
+    └── world-cup-analysis/
 ```
 
 ### 带宽线路分析链路（当前主流程）
@@ -117,6 +120,24 @@ skills/
   → 扩缩容评估：Agent 调用 bandwidth_check 计算 15 天 P95 并判断 expand / shrink / stable
   → 如需操作，调用 bandwidth_report 生成扩容、应急扩容或缩容邮件
 ```
+
+### 世界杯数据分析链路
+
+```
+用户通过 data-manager 上传 世界杯每小时数据.xlsx
+  → data-manager 清空 world_cup.db 旧批次、旧指标、旧解析错误和旧 raw/normalized/parsed 文件
+  → 保存原始文件到 docker/volumes/deer-flow-data/world-cup/raw/
+  → data-manager 调用 mcp-servers/world-cup/core/transformer.py 将旧格式标准化为当前格式，保存到 docker/volumes/deer-flow-data/world-cup/normalized/
+  → data-manager 调用 mcp-servers/world-cup/core/parser.py 解析标准化后的受支持 sheet
+  → 保存解析快照到 docker/volumes/deer-flow-data/world-cup/parsed/
+  → data-manager 调用 mcp-servers/world-cup/core/db.py 写入 backend/.deer-flow/db/world_cup.db
+  → Agent 调用 WorldCup MCP 工具查询 status、records、summary、report
+```
+
+**职责边界**：
+- data-manager：上传、解析、入库
+- WorldCup MCP server：查询、汇总、报告
+- WorldCup agent：只调用 `world-cup-analysis` skill 和 MCP 工具，不直接读文件或 SQLite
 
 ## 配置文件约定
 

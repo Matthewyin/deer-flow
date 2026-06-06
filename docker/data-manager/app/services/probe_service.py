@@ -7,9 +7,26 @@ from pathlib import Path
 from datetime import datetime
 
 REMOTE_PROBE_DIR = "/app/mcp-servers/remote-probe"
-for p in [REMOTE_PROBE_DIR, f"{REMOTE_PROBE_DIR}/tools", f"{REMOTE_PROBE_DIR}/db"]:
-    if p not in sys.path:
+REMOTE_PROBE_IMPORT_PATHS = [
+    REMOTE_PROBE_DIR,
+    f"{REMOTE_PROBE_DIR}/tools",
+    f"{REMOTE_PROBE_DIR}/db",
+]
+
+
+def _ensure_remote_probe_imports() -> None:
+    for p in REMOTE_PROBE_IMPORT_PATHS:
+        if p in sys.path:
+            sys.path.remove(p)
         sys.path.insert(0, p)
+
+    cached_config = sys.modules.get("config")
+    cached_file = getattr(cached_config, "__file__", "") if cached_config else ""
+    if cached_config is not None and not cached_file.startswith(REMOTE_PROBE_DIR):
+        del sys.modules["config"]
+
+
+_ensure_remote_probe_imports()
 
 LOG_PATH = "/app/.deer-flow/probe/collection_log.json"
 
@@ -43,6 +60,7 @@ def _get_db_path() -> str:
 
 
 def collect_probe_data(regions=None) -> dict:
+    _ensure_remote_probe_imports()
     from collect_probe_data import collect_probe_data_impl
 
     # Sync REMOTE_PROBE_DB_PATH (read by config.get_config) to the shared volume path
@@ -52,6 +70,7 @@ def collect_probe_data(regions=None) -> dict:
 
 
 def get_status() -> dict:
+    _ensure_remote_probe_imports()
     from config import get_config
 
     cfg = get_config()

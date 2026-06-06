@@ -23,6 +23,15 @@ from deerflow.models import create_chat_model
 logger = logging.getLogger(__name__)
 
 
+def _get_runtime_config(config: RunnableConfig) -> dict:
+    context = config.get("context", {})
+    configurable = config.get("configurable", {})
+    merged = dict(context) if isinstance(context, dict) else {}
+    if isinstance(configurable, dict):
+        merged.update(configurable)
+    return merged
+
+
 def _resolve_model_name(requested_model_name: str | None = None) -> str:
     """Resolve a runtime model name safely, falling back to default if invalid. Returns None if no models are configured."""
     app_config = get_app_config()
@@ -224,7 +233,8 @@ def _build_middlewares(config: RunnableConfig, model_name: str | None, agent_nam
         middlewares.append(summarization_middleware)
 
     # Add TodoList middleware if plan mode is enabled
-    is_plan_mode = config.get("configurable", {}).get("is_plan_mode", False)
+    runtime_config = _get_runtime_config(config)
+    is_plan_mode = runtime_config.get("is_plan_mode", False)
     todo_list_middleware = _create_todo_list_middleware(is_plan_mode)
     if todo_list_middleware is not None:
         middlewares.append(todo_list_middleware)
@@ -253,9 +263,9 @@ def _build_middlewares(config: RunnableConfig, model_name: str | None, agent_nam
         middlewares.append(DeferredToolFilterMiddleware())
 
     # Add SubagentLimitMiddleware to truncate excess parallel task calls
-    subagent_enabled = config.get("configurable", {}).get("subagent_enabled", False)
+    subagent_enabled = runtime_config.get("subagent_enabled", False)
     if subagent_enabled:
-        max_concurrent_subagents = config.get("configurable", {}).get("max_concurrent_subagents", 3)
+        max_concurrent_subagents = runtime_config.get("max_concurrent_subagents", 3)
         middlewares.append(SubagentLimitMiddleware(max_concurrent=max_concurrent_subagents))
 
     # LoopDetectionMiddleware — detect and break repetitive tool call loops
@@ -275,7 +285,7 @@ def make_lead_agent(config: RunnableConfig):
     from deerflow.tools import get_available_tools
     from deerflow.tools.builtins import setup_agent
 
-    cfg = config.get("configurable", {})
+    cfg = _get_runtime_config(config)
 
     thinking_enabled = cfg.get("thinking_enabled", True)
     reasoning_effort = cfg.get("reasoning_effort", None)
@@ -301,6 +311,9 @@ def make_lead_agent(config: RunnableConfig):
     if thinking_enabled and not model_config.supports_thinking:
         logger.warning(f"Thinking mode is enabled but model '{model_name}' does not support it; fallback to non-thinking mode.")
         thinking_enabled = False
+    effective_subagent_enabled = subagent_enabled
+    if agent_config and agent_config.tool_groups is not None:
+        effective_subagent_enabled = False
 
     logger.info(
         "Create Agent(%s) -> thinking_enabled: %s, reasoning_effort: %s, model_name: %s, is_plan_mode: %s, subagent_enabled: %s, max_concurrent_subagents: %s",
@@ -309,7 +322,7 @@ def make_lead_agent(config: RunnableConfig):
         reasoning_effort,
         model_name,
         is_plan_mode,
-        subagent_enabled,
+        effective_subagent_enabled,
         max_concurrent_subagents,
     )
 
@@ -324,7 +337,7 @@ def make_lead_agent(config: RunnableConfig):
             "thinking_enabled": thinking_enabled,
             "reasoning_effort": reasoning_effort,
             "is_plan_mode": is_plan_mode,
-            "subagent_enabled": subagent_enabled,
+            "subagent_enabled": effective_subagent_enabled,
         }
     )
 
@@ -341,10 +354,10 @@ def make_lead_agent(config: RunnableConfig):
     # Default lead agent (unchanged behavior)
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort),
-        tools=get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=subagent_enabled),
+        tools=get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=effective_subagent_enabled),
         middleware=_build_middlewares(config, model_name=model_name, agent_name=agent_name),
         system_prompt=apply_prompt_template(
-            subagent_enabled=subagent_enabled, max_concurrent_subagents=max_concurrent_subagents, agent_name=agent_name, available_skills=set(agent_config.skills) if agent_config and agent_config.skills is not None else None
+            subagent_enabled=effective_subagent_enabled, max_concurrent_subagents=max_concurrent_subagents, agent_name=agent_name, available_skills=set(agent_config.skills) if agent_config and agent_config.skills is not None else None
         ),
         state_schema=ThreadState,
     )

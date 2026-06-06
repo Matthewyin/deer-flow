@@ -275,6 +275,24 @@ export function useThreadStream({
       let uploadedFileInfo: UploadedFileInfo[] = [];
 
       try {
+        const runContext = {
+          ...extraContext,
+          ...context,
+          thinking_enabled: context.mode !== "flash",
+          is_plan_mode: context.mode === "pro" || context.mode === "ultra",
+          subagent_enabled: context.mode === "ultra",
+          reasoning_effort:
+            context.reasoning_effort ??
+            (context.mode === "ultra"
+              ? "high"
+              : context.mode === "pro"
+                ? "medium"
+                : context.mode === "thinking"
+                  ? "low"
+                  : undefined),
+          thread_id: threadId,
+        };
+
         // Upload files first if any
         if (message.files && message.files.length > 0) {
           setIsUploading(true);
@@ -376,23 +394,7 @@ export function useThreadStream({
             config: {
               recursion_limit: 1000,
             },
-            context: {
-              ...extraContext,
-              ...context,
-              thinking_enabled: context.mode !== "flash",
-              is_plan_mode: context.mode === "pro" || context.mode === "ultra",
-              subagent_enabled: context.mode === "ultra",
-              reasoning_effort:
-                context.reasoning_effort ??
-                (context.mode === "ultra"
-                  ? "high"
-                  : context.mode === "pro"
-                    ? "medium"
-                    : context.mode === "thinking"
-                      ? "low"
-                      : undefined),
-              thread_id: threadId,
-            },
+            context: runContext,
           },
         );
         void queryClient.invalidateQueries({ queryKey: ["threads", "search"] });

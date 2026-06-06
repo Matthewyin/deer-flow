@@ -76,6 +76,18 @@ def test_resolve_model_name_raises_when_no_models_configured(monkeypatch):
         lead_agent_module._resolve_model_name("missing-model")
 
 
+def test_runtime_config_reads_context_and_keeps_configurable_override():
+    runtime_config = lead_agent_module._get_runtime_config(
+        {
+            "context": {"agent_name": "worldcup", "model_name": "context-model"},
+            "configurable": {"model_name": "config-model"},
+        }
+    )
+
+    assert runtime_config["agent_name"] == "worldcup"
+    assert runtime_config["model_name"] == "config-model"
+
+
 def test_make_lead_agent_disables_thinking_when_model_does_not_support_it(monkeypatch):
     app_config = _make_app_config([_make_model("safe-model", supports_thinking=False)])
 
@@ -110,6 +122,72 @@ def test_make_lead_agent_disables_thinking_when_model_does_not_support_it(monkey
     assert captured["name"] == "safe-model"
     assert captured["thinking_enabled"] is False
     assert result["model"] is not None
+
+
+def test_make_lead_agent_accepts_runtime_context(monkeypatch):
+    app_config = _make_app_config([_make_model("safe-model", supports_thinking=False)])
+
+    import deerflow.tools as tools_module
+
+    monkeypatch.setattr(lead_agent_module, "get_app_config", lambda: app_config)
+    monkeypatch.setattr(tools_module, "get_available_tools", lambda **kwargs: [])
+    monkeypatch.setattr(lead_agent_module, "_build_middlewares", lambda config, model_name, agent_name=None: [])
+    captured: dict[str, object] = {}
+
+    def _fake_load_agent_config(agent_name):
+        captured["agent_name"] = agent_name
+        return type("AgentConfig", (), {"model": None, "tool_groups": None, "skills": []})()
+
+    monkeypatch.setattr(lead_agent_module, "load_agent_config", _fake_load_agent_config)
+    monkeypatch.setattr(lead_agent_module, "create_chat_model", lambda **kwargs: object())
+    monkeypatch.setattr(lead_agent_module, "create_agent", lambda **kwargs: kwargs)
+
+    result = lead_agent_module.make_lead_agent(
+        {
+            "context": {
+                "agent_name": "worldcup",
+                "model_name": "safe-model",
+                "thinking_enabled": False,
+            }
+        }
+    )
+
+    assert captured["agent_name"] == "worldcup"
+    assert result["model"] is not None
+
+
+def test_make_lead_agent_disables_subagents_when_custom_agent_restricts_tool_groups(monkeypatch):
+    app_config = _make_app_config([_make_model("safe-model", supports_thinking=False)])
+
+    import deerflow.tools as tools_module
+
+    monkeypatch.setattr(lead_agent_module, "get_app_config", lambda: app_config)
+    monkeypatch.setattr(lead_agent_module, "_build_middlewares", lambda config, model_name, agent_name=None: [])
+    monkeypatch.setattr(lead_agent_module, "load_agent_config", lambda agent_name: type("AgentConfig", (), {"model": None, "tool_groups": [], "skills": []})())
+    monkeypatch.setattr(lead_agent_module, "create_chat_model", lambda **kwargs: object())
+    monkeypatch.setattr(lead_agent_module, "create_agent", lambda **kwargs: kwargs)
+
+    captured: dict[str, object] = {}
+
+    def _fake_get_available_tools(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(tools_module, "get_available_tools", _fake_get_available_tools)
+
+    lead_agent_module.make_lead_agent(
+        {
+            "configurable": {
+                "agent_name": "worldcup",
+                "model_name": "safe-model",
+                "thinking_enabled": False,
+                "subagent_enabled": True,
+            }
+        }
+    )
+
+    assert captured["groups"] == []
+    assert captured["subagent_enabled"] is False
 
 
 def test_build_middlewares_uses_resolved_model_name_for_vision(monkeypatch):

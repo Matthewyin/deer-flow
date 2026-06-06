@@ -298,6 +298,7 @@ async def start_run(
             "is_plan_mode",
             "subagent_enabled",
             "max_concurrent_subagents",
+            "agent_name",
         }
         configurable = config.setdefault("configurable", {})
         for key in _CONTEXT_CONFIGURABLE_KEYS:

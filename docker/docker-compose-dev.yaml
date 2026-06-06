@@ -260,8 +260,10 @@ services:
     environment:
       - BUSINESS_DB_PATH=/app/backend/.deer-flow/db/business_baseline.db
       - PROBE_DB_PATH=/app/backend/.deer-flow/db/remote_probe.db
+      - WORLD_CUP_DB_PATH=/app/backend/.deer-flow/db/world_cup.db
+      - WORLD_CUP_DATA_DIR=/app/.deer-flow/world-cup
       - DEER_FLOW_HOME=/app/.deer-flow
-      - PROBE_SCHEDULER_ENABLED=${PROBE_SCHEDULER_ENABLED:-false}
+      - PROBE_SCHEDULER_ENABLED=${PROBE_SCHEDULER_ENABLED:-true}
     env_file:
       - ../.env
     networks:
