@@ -77,6 +77,17 @@
       },
       "description": "世界杯保障数据分析：查询每小时数据、汇总峰值波动、生成保障日报"
     },
+    "outbound-message": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "/opt/venv/bin/python",
+      "args": ["/app/mcp-servers/outbound-message/server.py"],
+      "env": {
+        "WECOM_GROUP_BOT_WEBHOOK_URLS": "$WECOM_GROUP_BOT_WEBHOOK_URLS",
+        "WECOM_GROUP_BOT_TIMEOUT_SECONDS": "10"
+      },
+      "description": "外发消息工具集：向已配置的企业微信群聊机器人发送消息"
+    },
     "postgres": {
       "enabled": false,
       "type": "stdio",
