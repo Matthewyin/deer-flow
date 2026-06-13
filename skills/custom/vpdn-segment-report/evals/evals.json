@@ -1,0 +1,11 @@
+{
+  "skill_name": "vpdn-segment-report",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "生成6月2日到6月12日的VPDN指定线路和其他VPDN专线带宽周报，每条线路一套图",
+      "expected_output": "应该只调用两次 network-ops_bandwidth_report_generate。第一次使用固定18条线路 long_distance_no、line_scope=all、group_by=line、include_html=false，生成一个 VPDN指定线路 HTML。第二次使用 line_group=VPDN终端专线、exclude_long_distance_no=固定18条线路、line_scope=all、group_by=line、include_html=false，生成一个 VPDN其他专线 HTML。最后一次 present_files 呈现两个 HTML。不得按线路逐条调用，不得生成18个文件，不得把两类报表合并到一个 HTML。",
+      "files": []
+    }
+  ]
+}

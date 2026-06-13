@@ -44,6 +44,7 @@ skills/custom/*
 !skills/custom/bandwidth-management/
 !skills/custom/network-weekly-report/
 !skills/custom/probe-baseline/
+!skills/custom/vpdn-segment-report/
 docs/businessInfo/
 logs/
 log/
