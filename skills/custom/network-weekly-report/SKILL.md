@@ -24,10 +24,13 @@ description: >
   - 7 天及以上默认 `周报`
   - 1 到 3 天默认 `日报`
 - **线路筛选**：
-  - 用户未指定时，不传筛选条件，生成所有匹配线路的报告。
+  - 用户未指定时，使用 `line_scope="default"`，默认筛选：混合云TLS售票（4条）、西五环互联网B区（3条）、北京单场售票（2条）、两网三中心到数据中心线路（4条），共 13 条线路。
+  - 默认周报必须只调用一次 `network-ops_bandwidth_report_generate`，并且必须只生成一个 HTML 文件。禁止按线路逐条调用、逐条生成文件。
+  - 用户指定所有线路时，传 `line_scope="all"`，生成所有匹配线路的报告。
   - 用户指定线路组时，传 `line_group`，如 `TLS终端专线`、`西五环互联网B区线路`。
   - 用户指定业务用途时，传 `usage_keyword`，如 `混合云TLS`、`北京单场`、`本地互联`。
   - 用户指定线路编号时，传 `long_distance_no`，多个编号可用空格、逗号或分号分隔。
+  - 用户指定行号时，传 `line_no`，多个编号可用空格、逗号或分号分隔。
 
 ### 第 2 步：调用 network-ops 报表工具
 
@@ -41,6 +44,8 @@ network-ops_bandwidth_report_generate(
   line_group=<线路组关键词，可空>,
   usage_keyword=<用途关键词，可空>,
   long_distance_no=<线路编号，可空>,
+  line_no=<行号，可空>,
+  line_scope=<default/all>,
   report_type=<周报/日报，可空>,
   output_filename=<HTML文件名>,
   include_html=false
@@ -50,6 +55,7 @@ network-ops_bandwidth_report_generate(
 工具会在内部完成：
 
 - 查询 `network_ops.db.bandwidth_lines`
+- 按 `line_scope` 筛选默认周报线路或所有线路
 - 按日期和线路补齐数据
 - 按 `usage` 生成图表分组
 - 计算 `max_peak = max(in_peak_mbps, out_peak_mbps)`
@@ -74,6 +80,7 @@ network-ops_bandwidth_report_generate(
 3. **禁止复制、读取、改写或直接执行 `scripts/gen_report.py`**。该脚本只作为 `network-ops_bandwidth_report_generate` 的内部渲染实现。
 4. **禁止手工计算图表 series、Y 轴、阈值线或总结表**。这些算法必须留在 MCP 工具内部。
 5. **禁止为了保存报告而调用 `write_file` 写入 HTML 全文**。报告文件由 MCP 工具生成，Agent 只调用 `present_files` 呈现。
+6. **禁止为默认周报按单条线路循环调用报表工具**。默认 13 条线路必须一次调用、一个 HTML 文件。
 
 ## 图表生成规则
 

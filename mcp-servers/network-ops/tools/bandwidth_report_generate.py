@@ -23,6 +23,14 @@ _CARRIER_COLORS = {
     "联通": "#EE6666",
     "移动": "#91CC75",
 }
+_DEFAULT_USAGE_KEYWORDS = (
+    "混合云TLS售票",
+    "北京单场售票",
+    "运营两网三中心",
+)
+_DEFAULT_LINE_GROUPS = (
+    "西五环互联网B区线路",
+)
 
 
 def _get_client() -> BandwidthLinesClient:
@@ -59,6 +67,12 @@ def _matches_terms(value: str | None, terms: list[str]) -> bool:
         return True
     text = value or ""
     return any(term in text for term in terms)
+
+
+def _is_default_report_row(row: dict) -> bool:
+    usage = row.get("usage") or ""
+    line_group = row.get("line_group") or ""
+    return any(term in usage for term in _DEFAULT_USAGE_KEYWORDS) or line_group in _DEFAULT_LINE_GROUPS
 
 
 def _to_float(value) -> float:
@@ -258,6 +272,8 @@ def generate_bandwidth_report(
     line_group: str = "",
     usage_keyword: str = "",
     long_distance_no: str = "",
+    line_no: str = "",
+    line_scope: str = "default",
     report_type: str = "",
     output_filename: str = "",
     include_html: bool = False,
@@ -280,12 +296,17 @@ def generate_bandwidth_report(
 
     line_group_terms = _split_terms(line_group)
     usage_terms = _split_terms(usage_keyword)
+    line_no_terms = _split_terms(line_no)
     rows = [
         row
         for row in rows
         if _matches_terms(row.get("line_group"), line_group_terms)
         and _matches_terms(row.get("usage"), usage_terms)
+        and _matches_terms(str(row.get("line_no") or ""), line_no_terms)
     ]
+
+    if line_scope == "default" and not (line_group_terms or usage_terms or line_no_terms or long_distance_no):
+        rows = [row for row in rows if _is_default_report_row(row)]
 
     if not rows:
         return {
@@ -296,6 +317,8 @@ def generate_bandwidth_report(
                 "line_group": line_group,
                 "usage_keyword": usage_keyword,
                 "long_distance_no": long_distance_no,
+                "line_no": line_no,
+                "line_scope": line_scope,
             },
         }
 
@@ -312,10 +335,12 @@ def generate_bandwidth_report(
             "group_count": len(report_config["groups"]),
             "filters": {
                 "line_group": line_group,
-                "usage_keyword": usage_keyword,
-                "long_distance_no": long_distance_no,
-            },
-        }
+                    "usage_keyword": usage_keyword,
+                    "long_distance_no": long_distance_no,
+                    "line_no": line_no,
+                    "line_scope": line_scope,
+                },
+            }
     )
     return result
 
@@ -329,6 +354,8 @@ def register(mcp: FastMCP):
         line_group: str = "",
         usage_keyword: str = "",
         long_distance_no: str = "",
+        line_no: str = "",
+        line_scope: str = "default",
         report_type: str = "",
         output_filename: str = "",
         include_html: bool = False,
@@ -342,6 +369,8 @@ def register(mcp: FastMCP):
             line_group: 线路组关键词，支持模糊匹配；空则不过滤。
             usage_keyword: 用途关键词，支持模糊匹配；空则不过滤。
             long_distance_no: 线路编号过滤，支持多个编号。
+            line_no: 行号过滤，支持多个编号，如 151 152。
+            line_scope: 线路范围。default 表示默认 13 条周报线路；all 表示不过滤默认集合。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。
             output_filename: 建议保存给用户的 HTML 文件名。
             include_html: 是否在工具结果中返回 HTML 全文。默认 false，避免占满上下文。
@@ -356,6 +385,8 @@ def register(mcp: FastMCP):
             line_group=line_group,
             usage_keyword=usage_keyword,
             long_distance_no=long_distance_no,
+            line_no=line_no,
+            line_scope=line_scope,
             report_type=report_type,
             output_filename=output_filename,
             include_html=include_html,
