@@ -171,6 +171,8 @@ class ServerConfig:
     reranker: RerankerConfig = None
     llm: LLMConfig = field(default_factory=LLMConfig)
     line_status_data_dir: str = ""
+    bandwidth_report_script_path: str = ""
+    bandwidth_report_default_output_filename: str = ""
 
     def __post_init__(self):
         if self.mysql is None:
@@ -212,6 +214,16 @@ class ServerConfig:
         if not self.line_status_data_dir:
             self.line_status_data_dir = os.getenv(
                 "LINE_STATUS_DATA_DIR", "/app/.deer-flow/line-status"
+            )
+        if not self.bandwidth_report_script_path:
+            self.bandwidth_report_script_path = os.getenv(
+                "BANDWIDTH_REPORT_SCRIPT_PATH",
+                "/app/skills/custom/network-weekly-report/scripts/gen_report.py",
+            )
+        if not self.bandwidth_report_default_output_filename:
+            self.bandwidth_report_default_output_filename = os.getenv(
+                "BANDWIDTH_REPORT_DEFAULT_OUTPUT_FILENAME",
+                "带宽曲线报告.html",
             )
 
 

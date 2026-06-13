@@ -9,181 +9,83 @@ description: >
 
 # 网络专线带宽趋势报告生成器
 
-生成交互式 HTML 带宽趋势报告，包含 ECharts 折线图、逐日明细表和总结汇总表。
+本技能只负责把用户意图转成 `network-ops` MCP 工具参数。查询、数据整理、图表数据结构生成和 HTML 渲染都必须由 `network-ops_bandwidth_report_generate` 完成。
 
 ## 工作流程
 
-### 第 1 步：确定查询参数
+### 第 1 步：确定报告参数
 
-与用户确认报告参数（如果用户没有明确指定）：
+如果用户没有明确指定，使用以下默认值：
 
-- **时间范围**：默认取最近 7 天。用户可自定义天数（如 3 天、15 天、30 天）。
-  - 结束日期取今天或昨天（今天是 `{current_date}`）
-  - 开始日期 = 结束日期 - (天数 - 1)
-- **线路筛选**：默认查询以下线路：
-  - 混合云TLS售票-腾讯公有云2条线路
-  - 混合云TLS售票-阿里公有云2条线路
-  - 北京单场售票2条线路
-  - 两网三中心4条线路
-  - 西五环互联网B区3条线路。
-用户可指定线路组（如"只看 TLS 相关",或所有线路）
+- **时间范围**：最近 7 天。
+  - `end_date` 留空时，工具会自动取数据库中最新可用日期。
+  - `start_date` 留空时，工具会按 `days` 自动计算。
 - **报告类型**：
-  - **周报**（默认）：7 天数据，标题含"周报"
-  - **日报**：1 天或最近 2-3 天数据，标题含"日报"
+  - 7 天及以上默认 `周报`
+  - 1 到 3 天默认 `日报`
+- **线路筛选**：
+  - 用户未指定时，不传筛选条件，生成所有匹配线路的报告。
+  - 用户指定线路组时，传 `line_group`，如 `TLS终端专线`、`西五环互联网B区线路`。
+  - 用户指定业务用途时，传 `usage_keyword`，如 `混合云TLS`、`北京单场`、`本地互联`。
+  - 用户指定线路编号时，传 `long_distance_no`，多个编号可用空格、逗号或分号分隔。
 
-### 第 2 步：查询数据
+### 第 2 步：调用 network-ops 报表工具
 
-调用 `network-ops_bandwidth_records_query` 工具获取原始数据。调用时使用以下参数：
-
-```
-start_date: <开始日期 YYYY-MM-DD>
-end_date: <结束日期 YYYY-MM-DD>
-limit: 500
-```
-
-该工具返回的每条记录包含以下关键字段：
-
-| 字段 | 说明 |
-|------|------|
-| `report_date` | 报告日期 |
-| `line_group` | 线路组名 |
-| `line_no` | 线路编号 |
-| `carrier` | 运营商 |
-| `usage` | 用途描述 |
-| `bandwidth_mbps` | 当日带宽档位 |
-| `in_peak_mbps` | 入向峰值带宽 |
-| `out_peak_mbps` | 出向峰值带宽 |
-| `in_avg_mbps` | 入向均值带宽 |
-| `out_avg_mbps` | 出向均值带宽 |
-| `latency_avg_ms` | 平均延迟 |
-| `bw_peak_baseline_mbps` | 峰值基线 |
-| `latency_baseline_ms` | 延迟基线 |
-
-### 第 3 步：组织数据结构
-
-将原始记录按线路组织。每条线路生成一个数据字典：
-
-```python
-{
-    "name": "#151 电信",       # 线路编号 + 运营商
-    "color": "#5470C6",        # 按运营商映射颜色
-    "carrier": "电信",
-    "bw": 20,                  # 当前带宽档位（取最后一天的 bandwidth_mbps）
-    "ip": [...],               # 每日 in_peak_mbps
-    "op": [...],               # 每日 out_peak_mbps
-    "ia": [...],               # 每日 in_avg_mbps
-    "oa": [...],               # 每日 out_avg_mbps
-    "lat": [...],              # 每日 latency_avg_ms
-    "bpbl": [...],             # 每日 bw_peak_baseline_mbps
-    "latbl": [...],            # 每日 latency_baseline_ms
-    "bws": [...],              # 每日 bandwidth_mbps
-    "usage": "混合云TLS售票-腾讯公有云"
-}
-```
-
-**衍生计算**（每条线路）：
-
-- `max_peak[i]` = `max(in_peak_mbps[i], out_peak_mbps[i])` — 取入向/出向峰值较大值
-- `max_avg[i]` = `max(in_avg_mbps[i], out_avg_mbps[i])` — 取入向/出向均值较大值
-- `peak_util[i]` = `max_peak[i] / bandwidth_mbps[i] × 100` — 峰值利用率（%）
-- `avg_util[i]` = `max_avg[i] / bandwidth_mbps[i] × 100` — 均值利用率（%）
-
-**线路分组**：按 `usage` 字段将线路归类到组。每组生成一套图表 + 明细表。
-
-**颜色映射**（按运营商）：
-- 电信 → `#5470C6`
-- 联通 → `#EE6666`
-- 移动 → `#91CC75`
-
-### 第 4 步：调用 MCP 工具生成 HTML
-
-不要复制、重写、读取或修改 `scripts/gen_report.py`。报告生成必须调用 `network-weekly-report_generate` MCP 工具完成。Agent 只负责把查询结果整理成 `report_config` JSON 对象，然后把工具返回的 `html` 写入 `/mnt/user-data/outputs/` 并调用 `present_files`。
-
-**MCP 工具调用方法**：
-
-1. 构造 `report_config` 对象
-2. `report_config` 顶层字段必须包含：
-   - `dates`：X 轴日期标签列表
-   - `lines`：所有线路数据字典
-   - `groups`：分组信息列表
-   - `report_title`、`report_period`、`report_type`：报告展示文本
-3. 调用 MCP 工具：
+必须调用：
 
 ```text
-network-weekly-report_generate(
-  report_config=<整理后的报告 JSON>,
-  output_filename="带宽曲线报告.html"
+network-ops_bandwidth_report_generate(
+  days=<天数>,
+  start_date=<开始日期 YYYY-MM-DD，可空>,
+  end_date=<结束日期 YYYY-MM-DD，可空>,
+  line_group=<线路组关键词，可空>,
+  usage_keyword=<用途关键词，可空>,
+  long_distance_no=<线路编号，可空>,
+  report_type=<周报/日报，可空>,
+  output_filename=<HTML文件名>
 )
 ```
 
-4. 工具返回 `ok: true` 时：
-   - 将返回的 `html` 原样写入 `suggested_output_path`，通常是 `/mnt/user-data/outputs/带宽曲线报告.html`
-   - 调用 `present_files` 呈现该 HTML
-5. 禁止为了生成报告而新写 `gen_weekly.py`、复制 `gen_report.py`、手工拼 HTML、读取并改写 ECharts 生成逻辑。除非 MCP 工具返回错误且用户明确授权修复 MCP/skill，否则必须使用 `network-weekly-report_generate`。
+工具会在内部完成：
 
-**JSON 示例**：
+- 查询 `network_ops.db.bandwidth_lines`
+- 按日期和线路补齐数据
+- 按 `usage` 生成图表分组
+- 计算 `max_peak = max(in_peak_mbps, out_peak_mbps)`
+- 计算 `max_avg = max(in_avg_mbps, out_avg_mbps)`
+- 计算峰值利用率和均值利用率
+- 调用标准 HTML 渲染脚本生成报告
 
-```json
-{
-  "dates": ["06-06", "06-07"],
-  "report_title": "各线路组 7天 带宽峰值/均值 & 利用率 & 延迟 趋势周报",
-  "report_period": "2026-06-06 ~ 2026-06-12",
-  "report_type": "周报",
-  "lines": {
-    "line1": {
-      "name": "#151 电信",
-      "color": "#5470C6",
-      "carrier": "电信",
-      "bw": 40,
-      "ip": [13.56, 9.35],
-      "op": [12.56, 9.07],
-      "ia": [7.80, 6.80],
-      "oa": [7.75, 6.70],
-      "lat": [4.19, 4.11],
-      "bpbl": [11.01, 12.29],
-      "latbl": [4.00, 4.00],
-      "bws": [40, 40],
-      "usage": "混合云TLS售票-腾讯公有云"
-    }
-  },
-  "groups": [
-    {"title": "一、混合云TLS售票-腾讯公有云（1条）", "lines": ["line1"]}
-  ]
-}
-```
+### 第 3 步：保存并呈现报告
 
-**脚本生成规则**（详见 `references/chart_spec.md`）：
+工具返回 `ok: true` 时：
 
-- 每个线路组生成 3 张 ECharts 折线图：带宽峰值&均值、利用率、延迟
-- 带宽图：Y 轴最大值必须等于当前线路组内所有线路、所有日期的最大 `bandwidth_mbps`，不得按峰值流量动态放大
-- 带宽图：每条线路有红色虚线 80% 带宽阈值 markLine
-- 利用率图：第一条 series 上有 80% 阈值 markLine
-- 延迟图：仅画延迟曲线，无基线
-- 每组附逐日明细表，必须展示峰值基线和延迟基线字段
-- 报告末尾附总结汇总表（含 ✅/⚠️/🔴 评估）
-- 自包含 HTML，仅依赖 ECharts CDN
+1. 将返回的 `html` 原样写入 `suggested_output_path`，通常是 `/mnt/user-data/outputs/带宽曲线报告.html`。
+2. 调用 `present_files` 呈现该 HTML 文件。
 
-### 第 5 步：呈现报告
+工具返回 `ok: false` 时，直接把错误原因反馈给用户。不要自行改写算法或临时写脚本绕过。
 
-将生成的 HTML 文件通过 `present_files` 呈现给用户。
+## 禁止事项
 
-如果用户需要调整（修改颜色、增减图表、调整阈值等），直接修改脚本中的对应部分并重新执行。
+1. **禁止先调用 `network-ops_bandwidth_records_query` 再自行整理 `report_config`**。该工具只用于用户明确要求查看原始记录或核查字段，不用于报表生成。
+2. **禁止新写 `gen_weekly.py`、Python 生成器或 HTML 拼接脚本**。
+3. **禁止复制、读取、改写或直接执行 `scripts/gen_report.py`**。该脚本只作为 `network-ops_bandwidth_report_generate` 的内部渲染实现。
+4. **禁止手工计算图表 series、Y 轴、阈值线或总结表**。这些算法必须留在 MCP 工具内部。
 
----
+## 图表生成规则
 
-## 关键约束
+以下规则由 `network-ops_bandwidth_report_generate` 和底层渲染脚本保证：
 
-1. **不画基线**：`bw_peak_baseline_mbps` 和 `latency_baseline_ms` 只在数据明细表中展示，不作为曲线出现在任何图表中。
-2. **80% 阈值**：带宽图阈值 = `带宽 × 80%`（Mbps），利用率图阈值 = `80%`。不做其他阈值。
-3. **带宽图 Y 轴**：最大值必须等于当前线路组内所有线路、所有日期的最大 `bandwidth_mbps`，不得使用 `max_peak × 1.2` 或其他动态放大值。
-4. **max_peak/max_avg 取双向较大值**：`max(in, out)`，不是简单取单方向。
-5. **带宽可能变化**：同一线路在不同日期的 bandwidth_mbps 可能不同（如扩容 20M→40M），阈值 markLine 使用当前带宽计算，Y 轴上限取该组全周期最大带宽。
-6. **Python 3.10 兼容**：f-string 中不能包含反斜杠。脚本使用 `%` 格式化拼接 ECharts option JSON。
-7. **单文件 HTML**：所有 CSS/JS 内嵌，仅依赖 ECharts CDN。
-8. **响应式**：window resize 事件触发所有 ECharts 实例 resize()。
-9. **禁止另写脚本**：报告生成必须调用 `network-weekly-report_generate` MCP 工具。Agent 只能生成 `report_config` JSON，不得另写 Python/HTML 生成器，也不得直接调用 `scripts/gen_report.py`。
+- 每个线路组生成 3 张 ECharts 折线图：带宽峰值&均值、利用率、延迟。
+- 带宽图 Y 轴最大值必须等于当前线路组内所有线路、所有日期的最大 `bandwidth_mbps`，不得按峰值流量动态放大。
+- 带宽图每条线路有红色虚线 80% 带宽阈值 markLine。
+- 利用率图第一条 series 上有 80% 阈值 markLine。
+- 延迟图仅画延迟曲线，不画基线。
+- 逐日明细表必须展示峰值基线和延迟基线字段。
+- 报告末尾附总结汇总表（含 ✅/⚠️/🔴 评估）。
+- 自包含 HTML，仅依赖 ECharts CDN。
 
 ## 参考文档
 
-- `references/chart_spec.md` — 图表规格详细说明（颜色、线型、ECharts 配置、样式规范）
-- `scripts/gen_report.py` — 报告生成脚本模板
+- `references/chart_spec.md` — 图表规格详细说明。
+- `scripts/gen_report.py` — `network-ops` MCP 工具内部使用的 HTML 渲染脚本，不供 Agent 直接调用。

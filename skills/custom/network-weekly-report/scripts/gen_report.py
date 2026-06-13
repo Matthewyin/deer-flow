@@ -3,10 +3,9 @@
 网络专线带宽趋势报告生成脚本
 
 使用方法：
-  1. 修改下方 === 数据配置区 === 中的 dates、LINES、GROUPS
-  2. 修改标题、日期范围等显示文本
-  3. 执行: python gen_report.py
-  4. 输出 HTML 文件
+  1. 由 network-ops_bandwidth_report_generate MCP 工具生成输入 JSON
+  2. 执行: python gen_report.py --input report_input.json --output report.html
+  3. 输出 HTML 文件
 
 注意：
   - 兼容 Python 3.10（f-string 中不能有反斜杠）
@@ -20,7 +19,7 @@ import os
 from datetime import datetime
 
 # ============================================================
-# === 数据配置区（由 skill 使用者根据查询结果填入） ===
+# === 数据配置区（运行时由 --input JSON 覆盖） ===
 # ============================================================
 
 # X轴日期标签
@@ -258,7 +257,9 @@ def generate_html():
 
         y_bw = max(max(L.get("bws", [L["bw"]])) for L in lines)
 
-        cid1 = "c%d" % cc; cc += 1; chart_ids.append(cid1)
+        cid1 = "c%d" % cc
+        cc += 1
+        chart_ids.append(cid1)
         chart_inits.append(mk_chart_js(cid1, bw_names, y_bw, "Mbps", bw_series))
         p.append('<h3>%s - 带宽峰值 & 均值</h3>' % title)
         p.append('<div id="%s" class="chart-container"></div>' % cid1)
@@ -273,7 +274,9 @@ def generate_html():
             ut_series.append(mk_series(n + " 峰值利用率", L["pu"], c, "solid", 2))
             ut_series.append(mk_series(n + " 均值利用率", L["au"], c, "dashed", 1.5))
 
-        cid2 = "c%d" % cc; cc += 1; chart_ids.append(cid2)
+        cid2 = "c%d" % cc
+        cc += 1
+        chart_ids.append(cid2)
         chart_inits.append(
             mk_chart_js(cid2, ut_names, 100, "%", ut_series, first_has_markline=True)
         )
@@ -292,7 +295,9 @@ def generate_html():
         y_lat = round(max(max(L["lat"]) for L in lines) * 1.3, 2)
         y_lat = max(y_lat, 1)
 
-        cid3 = "c%d" % cc; cc += 1; chart_ids.append(cid3)
+        cid3 = "c%d" % cc
+        cc += 1
+        chart_ids.append(cid3)
         chart_inits.append(mk_chart_js(cid3, lat_names, y_lat, "ms", lat_series))
         p.append('<h3>%s - 延迟</h3>' % title)
         p.append('<div id="%s" class="chart-container"></div>' % cid3)

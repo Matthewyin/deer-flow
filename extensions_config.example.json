@@ -12,11 +12,13 @@
         "MYSQL_PASSWORD": "$MYSQL_PASSWORD",
         "MYSQL_DATABASE": "$MYSQL_DATABASE",
         "BANDWIDTH_MD_PATH": "docs/bandwidth.md",
-        "SQLITE_DB_PATH": ".deer-flow/db/network_ops.db",
+        "SQLITE_DB_PATH": "/app/backend/.deer-flow/db/network_ops.db",
         "CHROMA_PERSIST_DIR": ".deer-flow/vectors/bandwidth_policy",
-        "OLLAMA_BASE_URL": "http://host.docker.internal:11434"
+        "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
+        "BANDWIDTH_REPORT_SCRIPT_PATH": "/app/skills/custom/network-weekly-report/scripts/gen_report.py",
+        "BANDWIDTH_REPORT_DEFAULT_OUTPUT_FILENAME": "带宽曲线报告.html"
       },
-      "description": "网络运维工具集：线路查询、带宽评估、统计查询、邮件生成"
+      "description": "网络运维工具集：线路查询、带宽评估、统计查询、邮件生成、带宽日报周报生成"
     },
     "ops-knowledge": {
       "enabled": false,
@@ -87,17 +89,6 @@
         "WECOM_GROUP_BOT_TIMEOUT_SECONDS": "10"
       },
       "description": "外发消息工具集：向已配置的企业微信群聊机器人发送消息"
-    },
-    "network-weekly-report": {
-      "enabled": false,
-      "type": "stdio",
-      "command": "/opt/venv/bin/python",
-      "args": ["/app/mcp-servers/network-weekly-report/server.py"],
-      "env": {
-        "NETWORK_WEEKLY_REPORT_SCRIPT_PATH": "/app/skills/custom/network-weekly-report/scripts/gen_report.py",
-        "NETWORK_WEEKLY_REPORT_DEFAULT_OUTPUT_FILENAME": "带宽曲线报告.html"
-      },
-      "description": "网络专线带宽周报生成：根据结构化带宽数据调用标准脚本生成 HTML"
     },
     "postgres": {
       "enabled": false,
