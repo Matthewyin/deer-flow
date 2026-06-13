@@ -1,0 +1,11 @@
+{
+  "skill_name": "vpdn-line-report",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "生成6月7日到6月13日的VPDN指定线路和其他VPDN专线带宽周报",
+      "expected_output": "应该只调用两次 network-ops_vpdn_report_generate。第一次 report_scope=fixed、include_html=false，生成一个 VPDN指定线路 HTML。第二次 report_scope=other、include_html=false，生成一个 VPDN其他专线 HTML。最后一次 present_files 呈现两个 HTML。不得调用 network-ops_bandwidth_report_generate，不得按线路逐条调用，不得生成18个文件，不得把两类报表合并到一个 HTML。HTML 应展示长途线路编号字段，不展示线路字段；逐日明细应以日期为字段名、线路指标为记录名；相同带宽线路应在同一组图表中；必须画 35% 和 40% 两条阈值线，不能使用 80% 阈值线；不得生成均值、均值利用率、延迟、延迟基线相关图表或明细。",
+      "files": []
+    }
+  ]
+}

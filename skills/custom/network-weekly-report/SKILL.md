@@ -47,8 +47,6 @@ network-ops_bandwidth_report_generate(
   line_no=<行号，可空>,
   line_scope=<default/all>,
   group_by="bandwidth",
-  threshold_pcts=<可空，默认80；VPDN专线报表传35,40>,
-  report_profile=<可空；VPDN专线报表传vpdn>,
   report_type=<周报/日报，可空>,
   output_filename=<HTML文件名>,
   include_html=false
@@ -90,10 +88,10 @@ network-ops_bandwidth_report_generate(
 以下规则由 `network-ops_bandwidth_report_generate` 和底层渲染脚本保证：
 
 - 每个线路组生成 3 张 ECharts 折线图：带宽峰值&均值、利用率、延迟。
-- 默认按带宽档位分组，组标题应为 `2M带宽`、`4M带宽` 这类形式，不应按 `usage` 生成 `数据端` 这类分组。
+- 默认按组名分组，组标题应为 `TLS终端专线`、`北单售票专线` 这类形式，不应按 `usage` 生成 `数据端` 这类分组。
 - 带宽图 Y 轴最大值必须等于当前线路组内所有线路、所有日期的最大 `bandwidth_mbps`，不得按峰值流量动态放大。
-- 普通周报默认画 80% 阈值线；VPDN 专线报表传 `threshold_pcts="35,40"`，画 35% 和 40% 两条阈值线。
-- 普通周报保留均值和延迟；VPDN 专线报表传 `report_profile="vpdn"`，只输出峰值和峰值利用率。
+- 普通周报默认画 80% 阈值线，保留均值和延迟。
+- VPDN 专线报表不要使用本技能，应使用 `vpdn_line_report`。
 - 延迟图仅画延迟曲线，不画基线。
 - 逐日明细表必须展示峰值基线和延迟基线字段。
 - 报告末尾附总结汇总表（含 ✅/⚠️/🔴 评估）。
