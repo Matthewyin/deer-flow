@@ -46,6 +46,7 @@ network-ops_bandwidth_report_generate(
   long_distance_no=<线路编号，可空>,
   line_no=<行号，可空>,
   line_scope=<default/all>,
+  group_by="bandwidth",
   report_type=<周报/日报，可空>,
   output_filename=<HTML文件名>,
   include_html=false
@@ -57,7 +58,7 @@ network-ops_bandwidth_report_generate(
 - 查询 `network_ops.db.bandwidth_lines`
 - 按 `line_scope` 筛选默认周报线路或所有线路
 - 按日期和线路补齐数据
-- 按 `usage` 生成图表分组
+- 按 `bandwidth` 生成图表分组，相同带宽的线路放到同一个图表组中
 - 计算 `max_peak = max(in_peak_mbps, out_peak_mbps)`
 - 计算 `max_avg = max(in_avg_mbps, out_avg_mbps)`
 - 计算峰值利用率和均值利用率
@@ -87,6 +88,7 @@ network-ops_bandwidth_report_generate(
 以下规则由 `network-ops_bandwidth_report_generate` 和底层渲染脚本保证：
 
 - 每个线路组生成 3 张 ECharts 折线图：带宽峰值&均值、利用率、延迟。
+- 默认按带宽档位分组，组标题应为 `2M带宽`、`4M带宽` 这类形式，不应按 `usage` 生成 `数据端` 这类分组。
 - 带宽图 Y 轴最大值必须等于当前线路组内所有线路、所有日期的最大 `bandwidth_mbps`，不得按峰值流量动态放大。
 - 带宽图每条线路有红色虚线 80% 带宽阈值 markLine。
 - 利用率图第一条 series 上有 80% 阈值 markLine。
