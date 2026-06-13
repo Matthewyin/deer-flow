@@ -95,28 +95,31 @@ limit: 500
 - 联通 → `#EE6666`
 - 移动 → `#91CC75`
 
-### 第 4 步：准备数据 JSON 并调用脚本
+### 第 4 步：调用 MCP 工具生成 HTML
 
-读取 `scripts/gen_report.py`（本 skill 附带的报告生成脚本），但不要复制、重写或另写报告生成脚本。只允许把查询结果整理成 JSON 数据文件，然后用 `scripts/gen_report.py` 原样执行生成 HTML。
+不要复制、重写、读取或修改 `scripts/gen_report.py`。报告生成必须调用 `network-weekly-report_generate` MCP 工具完成。Agent 只负责把查询结果整理成 `report_config` JSON 对象，然后把工具返回的 `html` 写入 `/mnt/user-data/outputs/` 并调用 `present_files`。
 
-**脚本使用方法**：
+**MCP 工具调用方法**：
 
-1. 在工作目录创建 `network_weekly_report_input.json`
-2. JSON 顶层字段必须包含：
+1. 构造 `report_config` 对象
+2. `report_config` 顶层字段必须包含：
    - `dates`：X 轴日期标签列表
    - `lines`：所有线路数据字典
    - `groups`：分组信息列表
    - `report_title`、`report_period`、`report_type`：报告展示文本
-   - `output_path`：HTML 输出路径
-3. 执行脚本：
+3. 调用 MCP 工具：
 
-```bash
-python /mnt/skills/custom/network-weekly-report/scripts/gen_report.py \
-  --input /mnt/user-data/workspace/network_weekly_report_input.json \
-  --output /mnt/user-data/outputs/带宽曲线报告.html
+```text
+network-weekly-report_generate(
+  report_config=<整理后的报告 JSON>,
+  output_filename="带宽曲线报告.html"
+)
 ```
 
-4. 禁止为了生成报告而新写 `gen_weekly.py`、复制 `gen_report.py`、手工拼 HTML 或改写 ECharts 生成逻辑。除非脚本报错且用户明确授权修复 skill，否则必须使用本 skill 附带的 `scripts/gen_report.py`。
+4. 工具返回 `ok: true` 时：
+   - 将返回的 `html` 原样写入 `suggested_output_path`，通常是 `/mnt/user-data/outputs/带宽曲线报告.html`
+   - 调用 `present_files` 呈现该 HTML
+5. 禁止为了生成报告而新写 `gen_weekly.py`、复制 `gen_report.py`、手工拼 HTML、读取并改写 ECharts 生成逻辑。除非 MCP 工具返回错误且用户明确授权修复 MCP/skill，否则必须使用 `network-weekly-report_generate`。
 
 **JSON 示例**：
 
@@ -126,7 +129,6 @@ python /mnt/skills/custom/network-weekly-report/scripts/gen_report.py \
   "report_title": "各线路组 7天 带宽峰值/均值 & 利用率 & 延迟 趋势周报",
   "report_period": "2026-06-06 ~ 2026-06-12",
   "report_type": "周报",
-  "output_path": "/mnt/user-data/outputs/带宽曲线报告.html",
   "lines": {
     "line1": {
       "name": "#151 电信",
@@ -179,7 +181,7 @@ python /mnt/skills/custom/network-weekly-report/scripts/gen_report.py \
 6. **Python 3.10 兼容**：f-string 中不能包含反斜杠。脚本使用 `%` 格式化拼接 ECharts option JSON。
 7. **单文件 HTML**：所有 CSS/JS 内嵌，仅依赖 ECharts CDN。
 8. **响应式**：window resize 事件触发所有 ECharts 实例 resize()。
-9. **禁止另写脚本**：报告生成必须调用 `scripts/gen_report.py --input ... --output ...`。Agent 只能生成输入 JSON，不得另写 Python/HTML 生成器。
+9. **禁止另写脚本**：报告生成必须调用 `network-weekly-report_generate` MCP 工具。Agent 只能生成 `report_config` JSON，不得另写 Python/HTML 生成器，也不得直接调用 `scripts/gen_report.py`。
 
 ## 参考文档
 

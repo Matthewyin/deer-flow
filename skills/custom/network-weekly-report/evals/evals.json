@@ -4,19 +4,19 @@
     {
       "id": 1,
       "prompt": "帮我生成本周的网络带宽周报，7天的数据，所有线路",
-      "expected_output": "应该调用 bandwidth_records_query 查询最近7天数据，按线路分组，只生成输入JSON，然后调用 scripts/gen_report.py --input ... --output ... 生成HTML；不得另写Python或HTML生成脚本。报告包含带宽/利用率/延迟三组图表，带宽图Y轴最大值等于当前线路组最大线路带宽，带宽图有80%阈值线，逐日明细表展示峰值基线和延迟基线，末尾有总结汇总表",
+      "expected_output": "应该调用 bandwidth_records_query 查询最近7天数据，按线路分组，只生成 report_config JSON，然后调用 network-weekly-report_generate MCP工具生成HTML；不得另写Python或HTML生成脚本，不得直接调用脚本。报告包含带宽/利用率/延迟三组图表，带宽图Y轴最大值等于当前线路组最大线路带宽，带宽图有80%阈值线，逐日明细表展示峰值基线和延迟基线，末尾有总结汇总表",
       "files": []
     },
     {
       "id": 2,
       "prompt": "出一份最近3天的网络日报，只看西五环互联网B区那几条线路",
-      "expected_output": "应该查询最近3天数据，筛选西五环相关线路（#201/#202/#203），只生成输入JSON并调用 scripts/gen_report.py --input ... --output ...，生成日报格式的HTML，标题含'日报'，带宽图Y轴最大值等于当前线路组最大线路带宽",
+      "expected_output": "应该查询最近3天数据，筛选西五环相关线路（#201/#202/#203），只生成 report_config JSON 并调用 network-weekly-report_generate MCP工具，生成日报格式的HTML，标题含'日报'，带宽图Y轴最大值等于当前线路组最大线路带宽",
       "files": []
     },
     {
       "id": 3,
       "prompt": "帮我看看最近15天TLS相关专线的带宽趋势，出个报告",
-      "expected_output": "应该查询15天数据，筛选TLS相关线路组，只生成输入JSON并调用 scripts/gen_report.py --input ... --output ...，生成HTML报告，X轴15个日期点，图表包含带宽/利用率/延迟，带宽图Y轴最大值等于当前线路组最大线路带宽",
+      "expected_output": "应该查询15天数据，筛选TLS相关线路组，只生成 report_config JSON 并调用 network-weekly-report_generate MCP工具，生成HTML报告，X轴15个日期点，图表包含带宽/利用率/延迟，带宽图Y轴最大值等于当前线路组最大线路带宽",
       "files": []
     }
   ]

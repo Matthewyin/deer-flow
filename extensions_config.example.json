@@ -88,6 +88,17 @@
       },
       "description": "外发消息工具集：向已配置的企业微信群聊机器人发送消息"
     },
+    "network-weekly-report": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "/opt/venv/bin/python",
+      "args": ["/app/mcp-servers/network-weekly-report/server.py"],
+      "env": {
+        "NETWORK_WEEKLY_REPORT_SCRIPT_PATH": "/app/skills/custom/network-weekly-report/scripts/gen_report.py",
+        "NETWORK_WEEKLY_REPORT_DEFAULT_OUTPUT_FILENAME": "带宽曲线报告.html"
+      },
+      "description": "网络专线带宽周报生成：根据结构化带宽数据调用标准脚本生成 HTML"
+    },
     "postgres": {
       "enabled": false,
       "type": "stdio",
