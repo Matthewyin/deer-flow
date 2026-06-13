@@ -201,6 +201,7 @@ def _build_report_config(
             "bpbl": bpbl,
             "latbl": latbl,
             "bws": bws,
+            "line_group": first.get("line_group") or "未分组",
             "usage": first.get("usage") or first.get("line_group") or "未分组",
         }
 
@@ -215,9 +216,12 @@ def _build_report_config(
         for bandwidth in sorted(by_bandwidth):
             keys = by_bandwidth[bandwidth]
             grouped[f"{bandwidth}M带宽"] = keys
-    else:
+    elif group_by == "usage":
         for key, line in lines.items():
             grouped.setdefault(line["usage"], []).append(key)
+    else:
+        for key, line in lines.items():
+            grouped.setdefault(line["line_group"], []).append(key)
 
     groups = [
         {"title": f"{index}、{usage}（{len(keys)}条）", "lines": keys}
@@ -312,7 +316,7 @@ def generate_bandwidth_report(
     exclude_long_distance_no: str = "",
     line_no: str = "",
     line_scope: str = "default",
-    group_by: str = "bandwidth",
+    group_by: str = "line_group",
     threshold_pcts: str = "",
     report_profile: str = "",
     report_type: str = "",
@@ -430,7 +434,7 @@ def register(mcp: FastMCP):
         exclude_long_distance_no: str = "",
         line_no: str = "",
         line_scope: str = "default",
-        group_by: str = "bandwidth",
+        group_by: str = "line_group",
         threshold_pcts: str = "",
         report_profile: str = "",
         report_type: str = "",
@@ -449,7 +453,7 @@ def register(mcp: FastMCP):
             exclude_long_distance_no: 排除线路编号，支持多个编号。
             line_no: 行号过滤，支持多个编号，如 151 152。
             line_scope: 线路范围。default 表示默认 13 条周报线路；all 表示不过滤默认集合。
-            group_by: 图表分组方式。默认 bandwidth，表示相同带宽线路同图；usage 按用途分组；line 表示每条线路一套图。
+            group_by: 图表分组方式。默认 line_group，表示相同线路组同图；bandwidth 表示相同带宽线路同图；usage 按用途分组；line 表示每条线路一套图。
             threshold_pcts: 利用率阈值百分比，多个值用逗号分隔。空值表示 80；VPDN 专线报表传 35,40。
             report_profile: 报表口径。空值表示普通周报；vpdn 表示只统计峰值和峰值利用率。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。

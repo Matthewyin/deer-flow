@@ -46,7 +46,7 @@ network-ops_bandwidth_report_generate(
   long_distance_no=<线路编号，可空>,
   line_no=<行号，可空>,
   line_scope=<default/all>,
-  group_by="bandwidth",
+  group_by="line_group",
   report_type=<周报/日报，可空>,
   output_filename=<HTML文件名>,
   include_html=false
@@ -58,7 +58,7 @@ network-ops_bandwidth_report_generate(
 - 查询 `network_ops.db.bandwidth_lines`
 - 按 `line_scope` 筛选默认周报线路或所有线路
 - 按日期和线路补齐数据
-- 按 `bandwidth` 生成图表分组，相同带宽的线路放到同一个图表组中
+- 按 `line_group` 生成图表分组，相同线路组的线路放到同一个图表组中
 - 计算 `max_peak = max(in_peak_mbps, out_peak_mbps)`
 - 计算 `max_avg = max(in_avg_mbps, out_avg_mbps)`
 - 计算峰值利用率和均值利用率
