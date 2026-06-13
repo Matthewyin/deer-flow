@@ -172,6 +172,7 @@ def _build_report_config(
         carrier = first.get("carrier") or ""
         lines[key] = {
             "name": _line_name(first),
+            "long_distance_no": first.get("long_distance_no") or "",
             "color": _CARRIER_COLORS.get(carrier, "#5470C6"),
             "carrier": carrier,
             "bw": bws[-1] if bws else _to_int(first.get("bandwidth_mbps")),
@@ -190,6 +191,13 @@ def _build_report_config(
     if group_by == "line":
         for key, line in lines.items():
             grouped[f'{line["usage"]} - {line["name"]}'] = [key]
+    elif group_by == "bandwidth":
+        by_bandwidth: dict[int, list[str]] = {}
+        for key, line in lines.items():
+            by_bandwidth.setdefault(line["bw"], []).append(key)
+        for bandwidth in sorted(by_bandwidth):
+            keys = by_bandwidth[bandwidth]
+            grouped[f"{bandwidth}M带宽"] = keys
     else:
         for key, line in lines.items():
             grouped.setdefault(line["usage"], []).append(key)
@@ -400,7 +408,7 @@ def register(mcp: FastMCP):
             exclude_long_distance_no: 排除线路编号，支持多个编号。
             line_no: 行号过滤，支持多个编号，如 151 152。
             line_scope: 线路范围。default 表示默认 13 条周报线路；all 表示不过滤默认集合。
-            group_by: 图表分组方式。usage 按用途分组；line 表示每条线路一套图。
+            group_by: 图表分组方式。usage 按用途分组；line 表示每条线路一套图；bandwidth 表示相同带宽线路同图。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。
             output_filename: 建议保存给用户的 HTML 文件名。
             include_html: 是否在工具结果中返回 HTML 全文。默认 false，避免占满上下文。

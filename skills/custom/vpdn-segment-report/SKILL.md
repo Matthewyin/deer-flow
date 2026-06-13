@@ -13,7 +13,7 @@ description: >
 1. 指定 18 条线路一份 HTML。
 2. 除指定 18 条线路外，其他所有 VPDN 专线一份 HTML。
 
-两份 HTML 不能合并。每份 HTML 内部必须让每条线路各有一套图。
+两份 HTML 不能合并。每份 HTML 内部必须按带宽大小归类，相同带宽的线路放到同一组图表中。
 
 ## 固定线路清单
 
@@ -59,7 +59,7 @@ network-ops_bandwidth_report_generate(
   end_date=<结束日期 YYYY-MM-DD，可空>,
   long_distance_no="<固定线路清单，使用空格连接>",
   line_scope="all",
-  group_by="line",
+  group_by="bandwidth",
   report_type="周报",
   output_filename="VPDN指定线路带宽周报.html",
   include_html=false
@@ -69,8 +69,10 @@ network-ops_bandwidth_report_generate(
 要求：
 
 - 只生成一个 HTML。
-- 每条线路一套图。
+- 相同带宽的线路放到同一组图表中。
 - 每套图包含峰值、峰值利用率、延迟图表。
+- HTML 中展示长途线路编号字段，不展示“线路”字段。
+- 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
 
 ### 第 3 步：生成其他 VPDN 专线报表
 
@@ -84,7 +86,7 @@ network-ops_bandwidth_report_generate(
   line_group="VPDN终端专线",
   exclude_long_distance_no="<固定线路清单，使用空格连接>",
   line_scope="all",
-  group_by="line",
+  group_by="bandwidth",
   report_type="周报",
   output_filename="VPDN其他专线带宽周报.html",
   include_html=false
@@ -95,8 +97,10 @@ network-ops_bandwidth_report_generate(
 
 - 只生成一个 HTML。
 - 排除固定线路清单中的 18 条线路。
-- 每条线路一套图。
+- 相同带宽的线路放到同一组图表中。
 - 每套图包含峰值、峰值利用率、延迟图表。
+- HTML 中展示长途线路编号字段，不展示“线路”字段。
+- 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
 
 ### 第 4 步：呈现文件
 
@@ -111,3 +115,4 @@ network-ops_bandwidth_report_generate(
 3. 禁止调用 `network-ops_bandwidth_records_query` 后自行整理数据。
 4. 禁止新写 Python/HTML 脚本。
 5. 禁止使用 `write_file` 写入 HTML 全文。
+6. 禁止使用 `group_by="line"` 生成本技能报表；必须使用 `group_by="bandwidth"`。

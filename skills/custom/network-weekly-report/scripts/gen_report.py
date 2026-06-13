@@ -43,6 +43,7 @@ CARRIER_COLORS = {
 # 线路数据字典
 # 每条线路的 key 为自定义标识，value 为包含以下字段的字典：
 #   name: 显示名称（如 "#151 电信"）
+#   long_distance_no: 长途线路编号
 #   color: 线条颜色（按运营商映射）
 #   carrier: 运营商名称
 #   bw: 当前带宽档位（Mbps）
@@ -202,6 +203,30 @@ def mk_chart_js(cid, names, y_max, unit_str, series_arr, first_has_markline=Fals
     }
 
 
+def line_label(line):
+    """优先使用长途线路编号展示线路。"""
+    return line.get("long_distance_no") or line.get("name", "")
+
+
+def detail_rows(line):
+    """生成逐日明细转置表中的指标行。"""
+    label = line_label(line)
+    return [
+        (label + " in_peak", ["%.2f" % v for v in line["ip"]]),
+        (label + " out_peak", ["%.2f" % v for v in line["op"]]),
+        (label + " max_peak", ["%.2f" % v for v in line["mp"]]),
+        (label + " in_avg", ["%.2f" % v for v in line["ia"]]),
+        (label + " out_avg", ["%.2f" % v for v in line["oa"]]),
+        (label + " max_avg", ["%.2f" % v for v in line["ma"]]),
+        (label + " 峰值利用率", ["%.2f%%" % v for v in line["pu"]]),
+        (label + " 均值利用率", ["%.2f%%" % v for v in line["au"]]),
+        (label + " 延迟ms", ["%.2f" % v for v in line["lat"]]),
+        (label + " 峰值基线", [optional_num(line.get("bpbl"), i) for i in range(len(dates))]),
+        (label + " 延迟基线", [optional_num(line.get("latbl"), i) for i in range(len(dates))]),
+        (label + " 带宽", ["%dM" % v for v in line["bws"]]),
+    ]
+
+
 # ============================================================
 # === HTML 生成 ===
 # ============================================================
@@ -216,7 +241,6 @@ def generate_html():
     chart_inits = []
     chart_ids = []
     section_htmls = []
-    ndays = len(dates)
 
     for title, line_keys in GROUPS:
         lines = [LINES[k] for k in line_keys]
@@ -225,12 +249,12 @@ def generate_html():
 
         # 线路信息表
         p.append('<table class="info-table"><thead>')
-        p.append('<tr><th>线路</th><th>运营商</th><th>带宽</th><th>用途</th></tr>')
+        p.append('<tr><th>长途线路编号</th><th>运营商</th><th>带宽</th><th>用途</th></tr>')
         p.append('</thead><tbody>')
         for L in lines:
             p.append(
                 '<tr><td>%s</td><td>%s</td><td>%dM</td><td>%s</td></tr>'
-                % (L["name"], L["carrier"], L["bw"], L["usage"])
+                % (line_label(L), L["carrier"], L["bw"], L["usage"])
             )
         p.append('</tbody></table>')
 
@@ -238,7 +262,7 @@ def generate_html():
         bw_names = []
         bw_series = []
         for L in lines:
-            n = L["name"]
+            n = line_label(L)
             c = L["color"]
             bw_names += [n + " 峰值", n + " 均值"]
             threshold_mbps = round(L["bw"] * 0.8, 2)
@@ -268,7 +292,7 @@ def generate_html():
         ut_names = []
         ut_series = []
         for L in lines:
-            n = L["name"]
+            n = line_label(L)
             c = L["color"]
             ut_names += [n + " 峰值利用率", n + " 均值利用率"]
             ut_series.append(mk_series(n + " 峰值利用率", L["pu"], c, "solid", 2))
@@ -287,7 +311,7 @@ def generate_html():
         lat_names = []
         lat_series = []
         for L in lines:
-            n = L["name"]
+            n = line_label(L)
             c = L["color"]
             lat_names += [n + " 延迟"]
             lat_series.append(mk_series(n + " 延迟", L["lat"], c, "solid", 2))
@@ -305,36 +329,16 @@ def generate_html():
         # --- 逐日明细表 ---
         p.append('<h3>逐日明细</h3>')
         p.append('<div class="table-wrapper"><table class="data-table"><thead><tr>')
-        p.append('<th>日期</th>')
-        for L in lines:
-            n = L["name"]
-            p.append(
-                '<th>%s in_peak</th><th>%s out_peak</th><th>%s max_peak</th>'
-                '<th>%s in_avg</th><th>%s out_avg</th><th>%s max_avg</th>'
-                '<th>%s 峰值利用率</th><th>%s 均值利用率</th>'
-                '<th>%s 延迟ms</th><th>%s 峰值基线</th><th>%s 延迟基线</th><th>带宽</th>' % tuple([n] * 11)
-            )
+        p.append('<th>线路指标</th>')
+        for d in dates:
+            p.append('<th>%s</th>' % d)
         p.append('</tr></thead><tbody>')
-
-        for i in range(ndays):
-            p.append('<tr><td>%s</td>' % dates[i])
-            for L in lines:
-                p.append(
-                    '<td>%.2f</td><td>%.2f</td><td>%.2f</td>'
-                    '<td>%.2f</td><td>%.2f</td><td>%.2f</td>'
-                    '<td>%.2f%%</td><td>%.2f%%</td>'
-                    '<td>%.2f</td><td>%s</td><td>%s</td><td>%dM</td>'
-                    % (
-                        L["ip"][i], L["op"][i], L["mp"][i],
-                        L["ia"][i], L["oa"][i], L["ma"][i],
-                        L["pu"][i], L["au"][i],
-                        L["lat"][i],
-                        optional_num(L.get("bpbl"), i),
-                        optional_num(L.get("latbl"), i),
-                        L["bws"][i]
-                    )
-                )
-            p.append('</tr>')
+        for L in lines:
+            for row_name, values in detail_rows(L):
+                p.append('<tr><td>%s</td>' % row_name)
+                for value in values:
+                    p.append('<td>%s</td>' % value)
+                p.append('</tr>')
         p.append('</tbody></table></div>')
 
         section_htmls.append("\n".join(p))
@@ -343,7 +347,7 @@ def generate_html():
     summ = ['<h2>总结</h2>']
     summ.append('<table class="data-table"><thead><tr>')
     summ.append(
-        '<th>线路</th><th>运营商</th><th>带宽</th><th>最大峰值</th>'
+        '<th>长途线路编号</th><th>运营商</th><th>带宽</th><th>最大峰值</th>'
         '<th>最大峰值利用率</th><th>最大均值利用率</th><th>最大延迟</th><th>评估</th>'
     )
     summ.append('</tr></thead><tbody>')
@@ -372,7 +376,7 @@ def generate_html():
             summ.append(
                 '<tr%s><td>%s</td><td>%s</td><td>%dM</td><td>%.2f Mbps</td>'
                 '<td>%.2f%%</td><td>%.2f%%</td><td>%.2f ms</td><td>%s</td></tr>'
-                % (cls, L["name"], L["carrier"], L["bw"], mx_p, mx_pu, mx_au, mx_lat, st)
+                % (cls, line_label(L), L["carrier"], L["bw"], mx_p, mx_pu, mx_au, mx_lat, st)
             )
 
     summ.append('</tbody></table>')
