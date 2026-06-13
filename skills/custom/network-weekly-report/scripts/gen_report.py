@@ -15,6 +15,8 @@
 """
 
 import json
+import argparse
+import os
 from datetime import datetime
 
 # ============================================================
@@ -51,6 +53,7 @@ CARRIER_COLORS = {
 #   oa: 每日出向均值带宽列表
 #   lat: 每日延迟列表（ms）
 #   bpbl: 每日峰值基线列表（仅表格展示，不画图）
+#   latbl: 每日延迟基线列表（仅表格展示，不画图）
 #   bws: 每日带宽档位列表（支持带宽变化场景）
 #   usage: 用途描述（用于分组）
 
@@ -68,6 +71,7 @@ LINES = {
     #     "oa": [6.94, 7.75, 6.70, 7.65, 7.29, 7.69, 8.06],
     #     "lat": [4.09, 4.19, 4.11, 4.08, 4.20, 4.12, 4.18],
     #     "bpbl": [10.79, 11.01, 12.29, 10.82, 11.50, 11.42, 11.58],
+    #     "latbl": [4.00, 4.00, 4.00, 4.00, 4.00, 4.00, 4.00],
     #     "bws": [20, 20, 40, 40, 40, 40, 40],
     #     "usage": "混合云TLS售票-腾讯公有云"
     # },
@@ -88,6 +92,28 @@ GROUPS = [
 OUTPUT_PATH = "/mnt/user-data/outputs/带宽曲线报告.html"
 
 
+def load_config(input_path):
+    """从 JSON 文件加载报告数据配置。"""
+    global dates, REPORT_TITLE, REPORT_PERIOD, REPORT_TYPE, REPORT_DATE, THRESHOLD_PCT, LINES, GROUPS, OUTPUT_PATH
+
+    with open(input_path, "r", encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    dates = cfg["dates"]
+    REPORT_TITLE = cfg.get("report_title", REPORT_TITLE)
+    REPORT_PERIOD = cfg.get("report_period", REPORT_PERIOD)
+    REPORT_TYPE = cfg.get("report_type", REPORT_TYPE)
+    REPORT_DATE = cfg.get("report_date", REPORT_DATE)
+    THRESHOLD_PCT = cfg.get("threshold_pct", THRESHOLD_PCT)
+    LINES = cfg["lines"]
+
+    raw_groups = cfg["groups"]
+    GROUPS = [(item["title"], item["lines"]) if isinstance(item, dict) else (item[0], item[1]) for item in raw_groups]
+
+    if cfg.get("output_path"):
+        OUTPUT_PATH = cfg["output_path"]
+
+
 def max_list(a, b):
     """取两个列表逐元素的较大值"""
     return [round(max(x, y), 2) for x, y in zip(a, b)]
@@ -105,6 +131,13 @@ def pre_compute(lines_dict):
         L["ma"] = max_list(L["ia"], L["oa"])
         L["pu"] = util_list(L["mp"], L["bws"])
         L["au"] = util_list(L["ma"], L["bws"])
+
+
+def optional_num(vals, index):
+    """格式化可选数值，缺失时显示横线。"""
+    if not vals or index >= len(vals) or vals[index] is None:
+        return "-"
+    return "%.2f" % vals[index]
 
 
 def mk_series(name, data, color, ltype="solid", width=2):
@@ -175,6 +208,9 @@ def mk_chart_js(cid, names, y_max, unit_str, series_arr, first_has_markline=Fals
 # ============================================================
 
 def generate_html():
+    if not LINES or not GROUPS:
+        raise ValueError("请通过 --input 指定包含 dates、lines、groups 的 JSON 数据文件")
+
     pre_compute(LINES)
 
     cc = 0
@@ -271,7 +307,7 @@ def generate_html():
                 '<th>%s in_peak</th><th>%s out_peak</th><th>%s max_peak</th>'
                 '<th>%s in_avg</th><th>%s out_avg</th><th>%s max_avg</th>'
                 '<th>%s 峰值利用率</th><th>%s 均值利用率</th>'
-                '<th>%s 延迟ms</th><th>带宽</th>' % tuple([n] * 9)
+                '<th>%s 延迟ms</th><th>%s 峰值基线</th><th>%s 延迟基线</th><th>带宽</th>' % tuple([n] * 11)
             )
         p.append('</tr></thead><tbody>')
 
@@ -282,12 +318,15 @@ def generate_html():
                     '<td>%.2f</td><td>%.2f</td><td>%.2f</td>'
                     '<td>%.2f</td><td>%.2f</td><td>%.2f</td>'
                     '<td>%.2f%%</td><td>%.2f%%</td>'
-                    '<td>%.2f</td><td>%dM</td>'
+                    '<td>%.2f</td><td>%s</td><td>%s</td><td>%dM</td>'
                     % (
                         L["ip"][i], L["op"][i], L["mp"][i],
                         L["ia"][i], L["oa"][i], L["ma"][i],
                         L["pu"][i], L["au"][i],
-                        L["lat"][i], L["bws"][i]
+                        L["lat"][i],
+                        optional_num(L.get("bpbl"), i),
+                        optional_num(L.get("latbl"), i),
+                        L["bws"][i]
                     )
                 )
             p.append('</tr>')
@@ -430,6 +469,10 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
 
     html = "\n".join(html_parts)
 
+    output_dir = os.path.dirname(OUTPUT_PATH)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -438,5 +481,18 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
     return OUTPUT_PATH
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="生成网络专线带宽趋势 HTML 报告")
+    parser.add_argument("--input", required=True, help="报告数据 JSON 文件路径")
+    parser.add_argument("--output", help="HTML 输出路径")
+    args = parser.parse_args()
+
+    load_config(args.input)
+    if args.output:
+        global OUTPUT_PATH
+        OUTPUT_PATH = args.output
     generate_html()
+
+
+if __name__ == "__main__":
+    main()

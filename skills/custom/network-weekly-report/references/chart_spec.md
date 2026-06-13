@@ -82,13 +82,14 @@ yAxis: {
 每组图表下方，列为：
 
 ```
-日期 | [每条线路]: in_peak, out_peak, max_peak, in_avg, out_avg, max_avg, 峰值利用率, 均值利用率, 延迟ms, 带宽
+日期 | [每条线路]: in_peak, out_peak, max_peak, in_avg, out_avg, max_avg, 峰值利用率, 均值利用率, 延迟ms, 峰值基线, 延迟基线, 带宽
 ```
 
 - 表头 sticky 固定（position: sticky, top: 0, z-index: 1）
 - 字体 12px，单元格居中，nowrap
 - 最大高度 450px，横向+纵向可滚动
 - 标题行背景 #f0f3f8，hover 行 #f5f8ff
+- `bw_peak_baseline_mbps` 和 `latency_baseline_ms` 只在表格中展示，不进入任何曲线 series
 
 ## 总结汇总表
 

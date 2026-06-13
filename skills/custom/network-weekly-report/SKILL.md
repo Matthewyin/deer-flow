@@ -75,6 +75,7 @@ limit: 500
     "oa": [...],               # 每日 out_avg_mbps
     "lat": [...],              # 每日 latency_avg_ms
     "bpbl": [...],             # 每日 bw_peak_baseline_mbps
+    "latbl": [...],            # 每日 latency_baseline_ms
     "bws": [...],              # 每日 bandwidth_mbps
     "usage": "混合云TLS售票-腾讯公有云"
 }
@@ -94,20 +95,60 @@ limit: 500
 - 联通 → `#EE6666`
 - 移动 → `#91CC75`
 
-### 第 4 步：生成 Python 脚本
+### 第 4 步：准备数据 JSON 并调用脚本
 
-读取 `scripts/gen_report.py`（本 skill 附带的报告生成脚本），将组织好的数据填入脚本中的 `LINES` 字典和 `GROUPS` 列表，设置好 `dates`、标题、日期范围等参数，然后执行脚本生成 HTML。
+读取 `scripts/gen_report.py`（本 skill 附带的报告生成脚本），但不要复制、重写或另写报告生成脚本。只允许把查询结果整理成 JSON 数据文件，然后用 `scripts/gen_report.py` 原样执行生成 HTML。
 
 **脚本使用方法**：
 
-1. 复制 `scripts/gen_report.py` 到工作目录
-2. 修改脚本中的以下硬编码数据区域：
-   - `dates` 列表：X 轴日期标签
-   - `LINES` 字典：所有线路数据
-   - `GROUPS` 列表：分组信息
-   - 标题、副标题中的日期范围和报告类型
-3. 执行脚本：`python gen_report.py`
-4. 输出文件默认写到 `/mnt/user-data/outputs/带宽曲线报告.html`
+1. 在工作目录创建 `network_weekly_report_input.json`
+2. JSON 顶层字段必须包含：
+   - `dates`：X 轴日期标签列表
+   - `lines`：所有线路数据字典
+   - `groups`：分组信息列表
+   - `report_title`、`report_period`、`report_type`：报告展示文本
+   - `output_path`：HTML 输出路径
+3. 执行脚本：
+
+```bash
+python /mnt/skills/custom/network-weekly-report/scripts/gen_report.py \
+  --input /mnt/user-data/workspace/network_weekly_report_input.json \
+  --output /mnt/user-data/outputs/带宽曲线报告.html
+```
+
+4. 禁止为了生成报告而新写 `gen_weekly.py`、复制 `gen_report.py`、手工拼 HTML 或改写 ECharts 生成逻辑。除非脚本报错且用户明确授权修复 skill，否则必须使用本 skill 附带的 `scripts/gen_report.py`。
+
+**JSON 示例**：
+
+```json
+{
+  "dates": ["06-06", "06-07"],
+  "report_title": "各线路组 7天 带宽峰值/均值 & 利用率 & 延迟 趋势周报",
+  "report_period": "2026-06-06 ~ 2026-06-12",
+  "report_type": "周报",
+  "output_path": "/mnt/user-data/outputs/带宽曲线报告.html",
+  "lines": {
+    "line1": {
+      "name": "#151 电信",
+      "color": "#5470C6",
+      "carrier": "电信",
+      "bw": 40,
+      "ip": [13.56, 9.35],
+      "op": [12.56, 9.07],
+      "ia": [7.80, 6.80],
+      "oa": [7.75, 6.70],
+      "lat": [4.19, 4.11],
+      "bpbl": [11.01, 12.29],
+      "latbl": [4.00, 4.00],
+      "bws": [40, 40],
+      "usage": "混合云TLS售票-腾讯公有云"
+    }
+  },
+  "groups": [
+    {"title": "一、混合云TLS售票-腾讯公有云（1条）", "lines": ["line1"]}
+  ]
+}
+```
 
 **脚本生成规则**（详见 `references/chart_spec.md`）：
 
@@ -116,7 +157,7 @@ limit: 500
 - 带宽图：每条线路有红色虚线 80% 带宽阈值 markLine
 - 利用率图：第一条 series 上有 80% 阈值 markLine
 - 延迟图：仅画延迟曲线，无基线
-- 每组附逐日明细表
+- 每组附逐日明细表，必须展示峰值基线和延迟基线字段
 - 报告末尾附总结汇总表（含 ✅/⚠️/🔴 评估）
 - 自包含 HTML，仅依赖 ECharts CDN
 
@@ -138,6 +179,7 @@ limit: 500
 6. **Python 3.10 兼容**：f-string 中不能包含反斜杠。脚本使用 `%` 格式化拼接 ECharts option JSON。
 7. **单文件 HTML**：所有 CSS/JS 内嵌，仅依赖 ECharts CDN。
 8. **响应式**：window resize 事件触发所有 ECharts 实例 resize()。
+9. **禁止另写脚本**：报告生成必须调用 `scripts/gen_report.py --input ... --output ...`。Agent 只能生成输入 JSON，不得另写 Python/HTML 生成器。
 
 ## 参考文档
 
