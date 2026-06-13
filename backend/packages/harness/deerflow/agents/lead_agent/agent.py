@@ -312,7 +312,8 @@ def make_lead_agent(config: RunnableConfig):
         logger.warning(f"Thinking mode is enabled but model '{model_name}' does not support it; fallback to non-thinking mode.")
         thinking_enabled = False
     effective_subagent_enabled = subagent_enabled
-    if agent_config and agent_config.tool_groups is not None:
+    agent_mcp_servers = getattr(agent_config, "mcp_servers", None) if agent_config else None
+    if agent_config and (agent_config.tool_groups is not None or agent_mcp_servers is not None):
         effective_subagent_enabled = False
 
     logger.info(
@@ -354,7 +355,7 @@ def make_lead_agent(config: RunnableConfig):
     # Default lead agent (unchanged behavior)
     return create_agent(
         model=create_chat_model(name=model_name, thinking_enabled=thinking_enabled, reasoning_effort=reasoning_effort),
-        tools=get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, subagent_enabled=effective_subagent_enabled),
+        tools=get_available_tools(model_name=model_name, groups=agent_config.tool_groups if agent_config else None, mcp_servers=agent_mcp_servers, subagent_enabled=effective_subagent_enabled),
         middleware=_build_middlewares(config, model_name=model_name, agent_name=agent_name),
         system_prompt=apply_prompt_template(
             subagent_enabled=effective_subagent_enabled, max_concurrent_subagents=max_concurrent_subagents, agent_name=agent_name, available_skills=set(agent_config.skills) if agent_config and agent_config.skills is not None else None

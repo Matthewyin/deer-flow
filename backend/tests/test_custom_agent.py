@@ -88,10 +88,12 @@ class TestAgentConfig:
             description="Specialized for code review",
             model="deepseek-v3",
             tool_groups=["file:read", "bash"],
+            mcp_servers=["github", "filesystem"],
         )
         assert cfg.name == "code-reviewer"
         assert cfg.model == "deepseek-v3"
         assert cfg.tool_groups == ["file:read", "bash"]
+        assert cfg.mcp_servers == ["github", "filesystem"]
 
     def test_config_from_dict(self):
         from deerflow.config.agents_config import AgentConfig
@@ -163,6 +165,17 @@ class TestLoadAgentConfig:
             cfg = load_agent_config("restricted")
 
         assert cfg.tool_groups == ["file:read", "file:write"]
+
+    def test_load_config_with_mcp_servers(self, tmp_path):
+        config_dict = {"name": "network-agent", "mcp_servers": ["network-ops", "outbound-message"]}
+        _write_agent(tmp_path, "network-agent", config_dict)
+
+        with patch("deerflow.config.agents_config.get_paths", return_value=_make_paths(tmp_path)):
+            from deerflow.config.agents_config import load_agent_config
+
+            cfg = load_agent_config("network-agent")
+
+        assert cfg.mcp_servers == ["network-ops", "outbound-message"]
 
     def test_load_config_with_skills_empty_list(self, tmp_path):
         config_dict = {"name": "no-skills-agent", "skills": []}
@@ -499,6 +512,7 @@ class TestAgentsAPI:
             "description": "Specialized agent",
             "model": "deepseek-v3",
             "tool_groups": ["file:read", "bash"],
+            "mcp_servers": ["network-ops", "outbound-message"],
             "soul": "You are specialized.",
         }
         response = agent_client.post("/api/agents", json=payload)
@@ -506,6 +520,22 @@ class TestAgentsAPI:
         data = response.json()
         assert data["model"] == "deepseek-v3"
         assert data["tool_groups"] == ["file:read", "bash"]
+        assert data["mcp_servers"] == ["network-ops", "outbound-message"]
+
+    def test_update_agent_preserves_mcp_servers(self, agent_client):
+        payload = {
+            "name": "network-agent",
+            "mcp_servers": ["network-ops", "outbound-message"],
+            "soul": "Network agent.",
+        }
+        agent_client.post("/api/agents", json=payload)
+
+        response = agent_client.put("/api/agents/network-agent", json={"description": "updated"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["description"] == "updated"
+        assert data["mcp_servers"] == ["network-ops", "outbound-message"]
 
     def test_create_persists_files_on_disk(self, agent_client, tmp_path):
         agent_client.post("/api/agents", json={"name": "disk-check", "soul": "disk soul"})

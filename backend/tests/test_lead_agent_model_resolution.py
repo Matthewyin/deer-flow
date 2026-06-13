@@ -190,6 +190,80 @@ def test_make_lead_agent_disables_subagents_when_custom_agent_restricts_tool_gro
     assert captured["subagent_enabled"] is False
 
 
+def test_make_lead_agent_passes_custom_agent_mcp_servers(monkeypatch):
+    app_config = _make_app_config([_make_model("safe-model", supports_thinking=False)])
+
+    import deerflow.tools as tools_module
+
+    monkeypatch.setattr(lead_agent_module, "get_app_config", lambda: app_config)
+    monkeypatch.setattr(lead_agent_module, "_build_middlewares", lambda config, model_name, agent_name=None: [])
+    monkeypatch.setattr(
+        lead_agent_module,
+        "load_agent_config",
+        lambda agent_name: type("AgentConfig", (), {"model": None, "tool_groups": None, "mcp_servers": ["network-ops", "outbound-message"], "skills": []})(),
+    )
+    monkeypatch.setattr(lead_agent_module, "create_chat_model", lambda **kwargs: object())
+    monkeypatch.setattr(lead_agent_module, "create_agent", lambda **kwargs: kwargs)
+
+    captured: dict[str, object] = {}
+
+    def _fake_get_available_tools(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(tools_module, "get_available_tools", _fake_get_available_tools)
+
+    lead_agent_module.make_lead_agent(
+        {
+            "configurable": {
+                "agent_name": "dedi",
+                "model_name": "safe-model",
+                "thinking_enabled": False,
+            }
+        }
+    )
+
+    assert captured["mcp_servers"] == ["network-ops", "outbound-message"]
+
+
+def test_make_lead_agent_disables_subagents_when_custom_agent_restricts_mcp_servers(monkeypatch):
+    app_config = _make_app_config([_make_model("safe-model", supports_thinking=False)])
+
+    import deerflow.tools as tools_module
+
+    monkeypatch.setattr(lead_agent_module, "get_app_config", lambda: app_config)
+    monkeypatch.setattr(lead_agent_module, "_build_middlewares", lambda config, model_name, agent_name=None: [])
+    monkeypatch.setattr(
+        lead_agent_module,
+        "load_agent_config",
+        lambda agent_name: type("AgentConfig", (), {"model": None, "tool_groups": None, "mcp_servers": ["network-ops"], "skills": []})(),
+    )
+    monkeypatch.setattr(lead_agent_module, "create_chat_model", lambda **kwargs: object())
+    monkeypatch.setattr(lead_agent_module, "create_agent", lambda **kwargs: kwargs)
+
+    captured: dict[str, object] = {}
+
+    def _fake_get_available_tools(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(tools_module, "get_available_tools", _fake_get_available_tools)
+
+    lead_agent_module.make_lead_agent(
+        {
+            "configurable": {
+                "agent_name": "dedi",
+                "model_name": "safe-model",
+                "thinking_enabled": False,
+                "subagent_enabled": True,
+            }
+        }
+    )
+
+    assert captured["mcp_servers"] == ["network-ops"]
+    assert captured["subagent_enabled"] is False
+
+
 def test_build_middlewares_uses_resolved_model_name_for_vision(monkeypatch):
     app_config = _make_app_config(
         [

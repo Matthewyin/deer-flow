@@ -35,6 +35,7 @@ def _is_host_bash_tool(tool: object) -> bool:
 def get_available_tools(
     groups: list[str] | None = None,
     include_mcp: bool = True,
+    mcp_servers: list[str] | None = None,
     model_name: str | None = None,
     subagent_enabled: bool = False,
 ) -> list[BaseTool]:
@@ -46,6 +47,7 @@ def get_available_tools(
     Args:
         groups: Optional list of tool groups to filter by.
         include_mcp: Whether to include tools from MCP servers (default: True).
+        mcp_servers: Optional MCP server names to include. None means all enabled servers.
         model_name: Optional model name to determine if vision tools should be included.
         subagent_enabled: Whether to include subagent tools (task, task_status).
 
@@ -96,6 +98,9 @@ def get_available_tools(
             if extensions_config.get_enabled_mcp_servers():
                 mcp_tools = get_cached_mcp_tools()
                 if mcp_tools:
+                    if mcp_servers is not None:
+                        allowed_prefixes = tuple(f"{server_name}_" for server_name in mcp_servers)
+                        mcp_tools = [tool for tool in mcp_tools if tool.name.startswith(allowed_prefixes)]
                     logger.info(f"Using {len(mcp_tools)} cached MCP tool(s)")
 
                     # When tool_search is enabled, register MCP tools in the

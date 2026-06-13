@@ -22,6 +22,7 @@ class AgentConfig(BaseModel):
     description: str = ""
     model: str | None = None
     tool_groups: list[str] | None = None
+    mcp_servers: list[str] | None = None
     # skills controls which skills are loaded into the agent's prompt:
     # - None (or omitted): load all enabled skills (default fallback behavior)
     # - [] (explicit empty list): disable all skills
