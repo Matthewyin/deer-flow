@@ -94,6 +94,21 @@ def _to_int(value) -> int:
     return int(value)
 
 
+def _parse_threshold_pcts(value: str) -> list[int]:
+    if not value:
+        return [80]
+
+    thresholds = []
+    for term in _split_terms(value):
+        pct = int(term)
+        if pct <= 0 or pct >= 100:
+            raise ValueError("threshold_pcts must be between 1 and 99")
+        thresholds.append(pct)
+    if not thresholds:
+        return [80]
+    return sorted(set(thresholds))
+
+
 def _resolve_period(days: int, start_date: str, end_date: str, available_dates: list[str]):
     if not available_dates:
         return "", "", []
@@ -296,6 +311,7 @@ def generate_bandwidth_report(
     line_no: str = "",
     line_scope: str = "default",
     group_by: str = "bandwidth",
+    threshold_pcts: str = "",
     report_type: str = "",
     output_filename: str = "",
     include_html: bool = False,
@@ -354,7 +370,17 @@ def generate_bandwidth_report(
             },
         }
 
+    try:
+        parsed_threshold_pcts = _parse_threshold_pcts(threshold_pcts)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "filters": {"threshold_pcts": threshold_pcts},
+        }
+
     report_config = _build_report_config(rows, period_dates, start, end, report_type, group_by)
+    report_config["threshold_pcts"] = parsed_threshold_pcts
     result = _render_html(report_config, output_filename, include_html)
     if not result.get("ok"):
         return result
@@ -373,6 +399,7 @@ def generate_bandwidth_report(
                 "line_no": line_no,
                 "line_scope": line_scope,
                 "group_by": group_by,
+                "threshold_pcts": threshold_pcts or "80",
             },
         }
     )
@@ -392,6 +419,7 @@ def register(mcp: FastMCP):
         line_no: str = "",
         line_scope: str = "default",
         group_by: str = "bandwidth",
+        threshold_pcts: str = "",
         report_type: str = "",
         output_filename: str = "",
         include_html: bool = False,
@@ -409,6 +437,7 @@ def register(mcp: FastMCP):
             line_no: 行号过滤，支持多个编号，如 151 152。
             line_scope: 线路范围。default 表示默认 13 条周报线路；all 表示不过滤默认集合。
             group_by: 图表分组方式。默认 bandwidth，表示相同带宽线路同图；usage 按用途分组；line 表示每条线路一套图。
+            threshold_pcts: 利用率阈值百分比，多个值用逗号分隔。空值表示 80；VPDN 专线报表传 35,40。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。
             output_filename: 建议保存给用户的 HTML 文件名。
             include_html: 是否在工具结果中返回 HTML 全文。默认 false，避免占满上下文。
@@ -427,6 +456,7 @@ def register(mcp: FastMCP):
             line_no=line_no,
             line_scope=line_scope,
             group_by=group_by,
+            threshold_pcts=threshold_pcts,
             report_type=report_type,
             output_filename=output_filename,
             include_html=include_html,

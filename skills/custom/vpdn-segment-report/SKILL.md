@@ -60,6 +60,7 @@ network-ops_bandwidth_report_generate(
   long_distance_no="<固定线路清单，使用空格连接>",
   line_scope="all",
   group_by="bandwidth",
+  threshold_pcts="35,40",
   report_type="周报",
   output_filename="VPDN指定线路带宽周报.html",
   include_html=false
@@ -71,6 +72,7 @@ network-ops_bandwidth_report_generate(
 - 只生成一个 HTML。
 - 相同带宽的线路放到同一组图表中。
 - 每套图包含峰值、峰值利用率、延迟图表。
+- 带宽图和利用率图必须按 35% 与 40% 画两条阈值线。
 - HTML 中展示长途线路编号字段，不展示“线路”字段。
 - 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
 
@@ -87,6 +89,7 @@ network-ops_bandwidth_report_generate(
   exclude_long_distance_no="<固定线路清单，使用空格连接>",
   line_scope="all",
   group_by="bandwidth",
+  threshold_pcts="35,40",
   report_type="周报",
   output_filename="VPDN其他专线带宽周报.html",
   include_html=false
@@ -99,6 +102,7 @@ network-ops_bandwidth_report_generate(
 - 排除固定线路清单中的 18 条线路。
 - 相同带宽的线路放到同一组图表中。
 - 每套图包含峰值、峰值利用率、延迟图表。
+- 带宽图和利用率图必须按 35% 与 40% 画两条阈值线。
 - HTML 中展示长途线路编号字段，不展示“线路”字段。
 - 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
 

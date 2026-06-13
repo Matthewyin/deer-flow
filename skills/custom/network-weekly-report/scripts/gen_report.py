@@ -31,7 +31,8 @@ REPORT_PERIOD = "2026-06-05 ~ 2026-06-11"
 REPORT_TYPE = "周报"  # "周报" 或 "日报"
 REPORT_DATE = datetime.now().strftime("%Y-%m-%d")
 
-THRESHOLD_PCT = 80  # 利用率阈值百分比
+THRESHOLD_PCT = 80  # 兼容旧输入，单阈值时使用
+THRESHOLD_PCTS = [80]  # 利用率阈值百分比列表
 
 # 颜色映射（按运营商）
 CARRIER_COLORS = {
@@ -94,7 +95,7 @@ OUTPUT_PATH = "/mnt/user-data/outputs/带宽曲线报告.html"
 
 def load_config(input_path):
     """从 JSON 文件加载报告数据配置。"""
-    global dates, REPORT_TITLE, REPORT_PERIOD, REPORT_TYPE, REPORT_DATE, THRESHOLD_PCT, LINES, GROUPS, OUTPUT_PATH
+    global dates, REPORT_TITLE, REPORT_PERIOD, REPORT_TYPE, REPORT_DATE, THRESHOLD_PCT, THRESHOLD_PCTS, LINES, GROUPS, OUTPUT_PATH
 
     with open(input_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -104,7 +105,13 @@ def load_config(input_path):
     REPORT_PERIOD = cfg.get("report_period", REPORT_PERIOD)
     REPORT_TYPE = cfg.get("report_type", REPORT_TYPE)
     REPORT_DATE = cfg.get("report_date", REPORT_DATE)
-    THRESHOLD_PCT = cfg.get("threshold_pct", THRESHOLD_PCT)
+    raw_thresholds = cfg.get("threshold_pcts")
+    if raw_thresholds:
+        THRESHOLD_PCTS = [int(v) for v in raw_thresholds]
+        THRESHOLD_PCT = max(THRESHOLD_PCTS)
+    else:
+        THRESHOLD_PCT = cfg.get("threshold_pct", THRESHOLD_PCT)
+        THRESHOLD_PCTS = [THRESHOLD_PCT]
     LINES = cfg["lines"]
 
     raw_groups = cfg["groups"]
@@ -150,24 +157,42 @@ def mk_series(name, data, color, ltype="solid", width=2):
     )
 
 
-def mk_threshold_markline(yval):
-    """生成 80% 利用率阈值 markLine（用于利用率图）"""
-    return (
-        "markLine:{silent:true,"
-        "lineStyle:{color:'#FF4444',type:'dashed',width:2},"
-        "data:[{yAxis:%d,label:{formatter:'%d%% 阈值',color:'#FF4444'}}]}"
-        % (yval, yval)
-    )
+def threshold_color(pct):
+    """不同阈值使用固定颜色，便于区分多条阈值线。"""
+    if pct <= 35:
+        return "#F59E0B"
+    return "#FF4444"
 
 
-def mk_bw_threshold_markline(threshold_mbps, line_name, bw_mbps):
+def mk_threshold_markline():
+    """生成利用率阈值 markLine（用于利用率图）"""
+    items = []
+    for pct in THRESHOLD_PCTS:
+        color = threshold_color(pct)
+        items.append(
+            "{yAxis:%d,label:{formatter:'%d%% 阈值',color:'%s'},"
+            "lineStyle:{color:'%s',type:'dashed',width:2}}"
+            % (pct, pct, color, color)
+        )
+    return "markLine:{silent:true,data:[%s]}" % ",".join(items)
+
+
+def mk_bw_threshold_markline(line_name, bw_mbps):
     """生成带宽阈值 markLine（用于带宽图，每条线路一条）"""
+    items = []
+    for pct in THRESHOLD_PCTS:
+        color = threshold_color(pct)
+        threshold_mbps = round(bw_mbps * pct / 100, 2)
+        items.append(
+            "{yAxis:%s,label:{formatter:'%s %d%%(%dM×%d%%)',"
+            "color:'%s',position:'insideEndTop'},"
+            "lineStyle:{color:'%s',type:'dashed',width:2}}"
+            % (threshold_mbps, line_name, pct, bw_mbps, pct, color, color)
+        )
     return (
         "markLine:{silent:true,symbol:'none',"
-        "lineStyle:{color:'#FF4444',type:'dashed',width:2},"
-        "data:[{yAxis:%s,label:{formatter:'%s 80%%(%dM×80%%)',"
-        "color:'#FF4444',position:'insideEndTop'}}]}"
-        % (threshold_mbps, line_name, bw_mbps)
+        "data:[%s]}"
+        % ",".join(items)
     )
 
 
@@ -177,7 +202,7 @@ def mk_chart_js(cid, names, y_max, unit_str, series_arr, first_has_markline=Fals
     for i, s in enumerate(series_arr):
         entry = s
         if i == 0 and first_has_markline:
-            entry = entry.rstrip("}") + "," + mk_threshold_markline(THRESHOLD_PCT) + "}"
+            entry = entry.rstrip("}") + "," + mk_threshold_markline() + "}"
         s_parts.append(entry)
     series_str = ",\n        ".join(s_parts)
     return (
@@ -258,14 +283,13 @@ def generate_html():
             )
         p.append('</tbody></table>')
 
-        # --- Chart 1: 带宽峰值 & 均值（含 80% 阈值线） ---
+        # --- Chart 1: 带宽峰值 & 均值（含阈值线） ---
         bw_names = []
         bw_series = []
         for L in lines:
             n = line_label(L)
             c = L["color"]
             bw_names += [n + " 峰值", n + " 均值"]
-            threshold_mbps = round(L["bw"] * 0.8, 2)
             s_peak = (
                 "{name:'%s 峰值',type:'line',smooth:true,symbol:'circle',symbolSize:5,"
                 "lineStyle:{color:'%s',type:'solid',width:2},"
@@ -273,7 +297,7 @@ def generate_html():
                 "%s}"
                 % (
                     n, c, c, L["mp"],
-                    mk_bw_threshold_markline(threshold_mbps, n, L["bw"])
+                    mk_bw_threshold_markline(n, L["bw"])
                 )
             )
             bw_series.append(s_peak)
@@ -288,7 +312,7 @@ def generate_html():
         p.append('<h3>%s - 带宽峰值 & 均值</h3>' % title)
         p.append('<div id="%s" class="chart-container"></div>' % cid1)
 
-        # --- Chart 2: 峰值利用率 & 均值利用率（含 80% 阈值线） ---
+        # --- Chart 2: 峰值利用率 & 均值利用率（含阈值线） ---
         ut_names = []
         ut_series = []
         for L in lines:
@@ -360,10 +384,19 @@ def generate_html():
             mx_au = max(L["au"])
             mx_lat = max(L["lat"])
 
-            if mx_pu >= THRESHOLD_PCT:
-                st = "🔴 超%d%%阈值" % THRESHOLD_PCT
-            elif mx_pu >= 60:
-                st = "⚠️ 较高（60~%d%%）" % THRESHOLD_PCT
+            if len(THRESHOLD_PCTS) == 1:
+                danger_threshold = THRESHOLD_PCTS[0]
+                warn_threshold = 60
+                if mx_pu >= danger_threshold:
+                    st = "🔴 超%d%%阈值" % danger_threshold
+                elif mx_pu >= warn_threshold:
+                    st = "⚠️ 较高（%d~%d%%）" % (warn_threshold, danger_threshold)
+                else:
+                    st = "✅ 正常"
+            elif mx_pu >= max(THRESHOLD_PCTS):
+                st = "🔴 超%d%%阈值" % max(THRESHOLD_PCTS)
+            elif mx_pu >= min(THRESHOLD_PCTS):
+                st = "⚠️ 超%d%%阈值" % min(THRESHOLD_PCTS)
             else:
                 st = "✅ 正常"
 
@@ -447,6 +480,12 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
 .danger td { background: #ffebee !important; }
 """
 
+    threshold_legend = "".join(
+        '<span class="legend-item"><span style="color:%s;font-weight:bold;">- - -</span> %d%% 利用率阈值</span>'
+        % (threshold_color(pct), pct)
+        for pct in THRESHOLD_PCTS
+    )
+
     # --- 拼装 HTML ---
     html_parts = [
         '<!DOCTYPE html><html lang="zh-CN"><head>',
@@ -467,7 +506,7 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
         '<span class="legend-item"><span class="legend-dot" style="background:#EE6666;"></span>联通</span>',
         '<span class="legend-item"><span class="legend-dot" style="background:#91CC75;"></span>移动</span>',
         '<br><strong>阈值线：</strong>',
-        '<span class="legend-item"><span style="color:#FF4444;font-weight:bold;">- - -</span> %d%% 利用率阈值</span>' % THRESHOLD_PCT,
+        threshold_legend,
         '</div>',
         "\n".join(section_htmls),
         "\n".join(summ),
