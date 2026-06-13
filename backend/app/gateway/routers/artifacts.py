@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.gateway.path_utils import resolve_thread_virtual_path
+from deerflow.config.paths import get_paths
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ ACTIVE_CONTENT_MIME_TYPES = {
     "application/xhtml+xml",
     "image/svg+xml",
 }
+MCP_OUTPUTS_VIRTUAL_PREFIX = "mnt/user-data/outputs/.mcp"
 
 
 def _build_content_disposition(disposition_type: str, filename: str) -> str:
@@ -41,6 +43,23 @@ def is_text_file_by_content(path: Path, sample_size: int = 8192) -> bool:
             return b"\x00" not in chunk
     except Exception:
         return False
+
+
+def _resolve_mcp_output_path(path: str) -> Path | None:
+    stripped = path.lstrip("/")
+    if stripped != MCP_OUTPUTS_VIRTUAL_PREFIX and not stripped.startswith(MCP_OUTPUTS_VIRTUAL_PREFIX + "/"):
+        return None
+
+    relative = stripped[len(MCP_OUTPUTS_VIRTUAL_PREFIX) :].lstrip("/")
+    actual_path = (get_paths().base_dir / "mcp-outputs" / relative).resolve()
+    base_dir = (get_paths().base_dir / "mcp-outputs").resolve()
+
+    try:
+        actual_path.relative_to(base_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail="Access denied: path traversal detected") from exc
+
+    return actual_path
 
 
 def _extract_file_from_skill_archive(zip_path: Path, internal_path: str) -> bytes | None:
@@ -152,7 +171,7 @@ async def get_artifact(thread_id: str, path: str, request: Request, download: bo
         except UnicodeDecodeError:
             return Response(content=content, media_type=mime_type or "application/octet-stream", headers=cache_headers)
 
-    actual_path = resolve_thread_virtual_path(thread_id, path)
+    actual_path = _resolve_mcp_output_path(path) or resolve_thread_virtual_path(thread_id, path)
 
     logger.info(f"Resolving artifact path: thread_id={thread_id}, requested_path={path}, actual_path={actual_path}")
 

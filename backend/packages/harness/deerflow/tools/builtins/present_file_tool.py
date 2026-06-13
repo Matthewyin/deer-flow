@@ -61,24 +61,27 @@ def _normalize_presented_filepath(
     outputs_dir = Path(outputs_path).resolve()
     stripped = filepath.lstrip("/")
     virtual_prefix = VIRTUAL_PATH_PREFIX.lstrip("/")
-    mcp_outputs_dir = (get_paths().base_dir / "mcp-outputs").resolve()
+    paths = get_paths()
+    base_dir = getattr(paths, "base_dir", None)
+    mcp_outputs_dir = (Path(base_dir) / "mcp-outputs").resolve() if base_dir else None
 
     if stripped == virtual_prefix or stripped.startswith(virtual_prefix + "/"):
-        actual_path = get_paths().resolve_virtual_path(thread_id, filepath)
+        actual_path = paths.resolve_virtual_path(thread_id, filepath)
     else:
         actual_path = Path(filepath).expanduser().resolve()
 
-    try:
-        actual_path.relative_to(mcp_outputs_dir)
-    except ValueError:
-        pass
-    else:
-        if not actual_path.is_file():
-            raise ValueError(f"Presented MCP output is not a file: {filepath}")
-        outputs_dir.mkdir(parents=True, exist_ok=True)
-        target_path = _non_conflicting_path(outputs_dir / actual_path.name)
-        shutil.copy2(actual_path, target_path)
-        actual_path = target_path
+    if mcp_outputs_dir:
+        try:
+            actual_path.relative_to(mcp_outputs_dir)
+        except ValueError:
+            pass
+        else:
+            if not actual_path.is_file():
+                raise ValueError(f"Presented MCP output is not a file: {filepath}")
+            outputs_dir.mkdir(parents=True, exist_ok=True)
+            target_path = _non_conflicting_path(outputs_dir / actual_path.name)
+            shutil.copy2(actual_path, target_path)
+            actual_path = target_path
 
     try:
         relative_path = actual_path.relative_to(outputs_dir)

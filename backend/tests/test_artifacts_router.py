@@ -86,6 +86,31 @@ def test_get_artifact_download_false_does_not_force_attachment(tmp_path, monkeyp
     assert "content-disposition" not in response.headers
 
 
+def test_get_artifact_reads_mcp_output_virtual_path(tmp_path, monkeypatch) -> None:
+    base_dir = tmp_path / ".deer-flow"
+    artifact_path = base_dir / "mcp-outputs" / "network-ops" / "abc123" / "report.txt"
+    artifact_path.parent.mkdir(parents=True)
+    artifact_path.write_text("mcp report", encoding="utf-8")
+
+    class FakePaths:
+        pass
+
+    FakePaths.base_dir = base_dir
+
+    monkeypatch.setattr(artifacts_router, "get_paths", lambda: FakePaths())
+
+    response = asyncio.run(
+        artifacts_router.get_artifact(
+            "thread-1",
+            "mnt/user-data/outputs/.mcp/network-ops/abc123/report.txt",
+            _make_request(),
+        )
+    )
+
+    assert bytes(response.body).decode("utf-8") == "mcp report"
+    assert response.media_type == "text/plain"
+
+
 def test_get_artifact_download_true_forces_attachment_for_skill_archive(tmp_path, monkeypatch) -> None:
     skill_path = tmp_path / "sample.skill"
     with zipfile.ZipFile(skill_path, "w") as zip_ref:

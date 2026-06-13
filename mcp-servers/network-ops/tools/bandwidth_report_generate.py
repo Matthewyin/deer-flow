@@ -17,6 +17,7 @@ from db.bandwidth_lines_client import BandwidthLinesClient
 _client: Optional[BandwidthLinesClient] = None
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_VIRTUAL_OUTPUT_PREFIX = "/mnt/user-data/outputs/.mcp/network-ops"
 _CARRIER_COLORS = {
     "电信": "#5470C6",
     "联通": "#EE6666",
@@ -193,9 +194,11 @@ def _render_html(report_config: dict, output_filename: str, include_html: bool) 
         return {"ok": False, "error": f"report script not found: {script_path}"}
 
     filename = _safe_output_filename(output_filename)
-    output_dir = _resolve_path(cfg.bandwidth_report_output_dir) / uuid.uuid4().hex
+    artifact_id = uuid.uuid4().hex
+    output_dir = _resolve_path(cfg.bandwidth_report_output_dir) / artifact_id
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / filename
+    virtual_path = f"{_VIRTUAL_OUTPUT_PREFIX}/{artifact_id}/{filename}"
 
     with tempfile.TemporaryDirectory(prefix="network-ops-bandwidth-report-") as tmpdir:
         tmp_path = Path(tmpdir)
@@ -240,7 +243,7 @@ def _render_html(report_config: dict, output_filename: str, include_html: bool) 
         "ok": True,
         "output_filename": filename,
         "artifact_path": str(output_path),
-        "present_filepaths": [str(output_path)],
+        "present_filepaths": [virtual_path],
         "stdout": result.stdout[-2000:],
     }
     if include_html:
