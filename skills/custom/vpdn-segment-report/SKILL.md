@@ -61,6 +61,7 @@ network-ops_bandwidth_report_generate(
   line_scope="all",
   group_by="bandwidth",
   threshold_pcts="35,40",
+  report_profile="vpdn",
   report_type="周报",
   output_filename="VPDN指定线路带宽周报.html",
   include_html=false
@@ -71,7 +72,7 @@ network-ops_bandwidth_report_generate(
 
 - 只生成一个 HTML。
 - 相同带宽的线路放到同一组图表中。
-- 每套图包含峰值、峰值利用率、延迟图表。
+- 每组图只包含峰值、峰值利用率图表；不要统计均值相关数据，不要生成延迟图。
 - 带宽图和利用率图必须按 35% 与 40% 画两条阈值线。
 - HTML 中展示长途线路编号字段，不展示“线路”字段。
 - 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
@@ -90,6 +91,7 @@ network-ops_bandwidth_report_generate(
   line_scope="all",
   group_by="bandwidth",
   threshold_pcts="35,40",
+  report_profile="vpdn",
   report_type="周报",
   output_filename="VPDN其他专线带宽周报.html",
   include_html=false
@@ -101,7 +103,7 @@ network-ops_bandwidth_report_generate(
 - 只生成一个 HTML。
 - 排除固定线路清单中的 18 条线路。
 - 相同带宽的线路放到同一组图表中。
-- 每套图包含峰值、峰值利用率、延迟图表。
+- 每组图只包含峰值、峰值利用率图表；不要统计均值相关数据，不要生成延迟图。
 - 带宽图和利用率图必须按 35% 与 40% 画两条阈值线。
 - HTML 中展示长途线路编号字段，不展示“线路”字段。
 - 逐日明细表必须转置：日期作为字段名，线路指标作为记录名。
@@ -120,3 +122,4 @@ network-ops_bandwidth_report_generate(
 4. 禁止新写 Python/HTML 脚本。
 5. 禁止使用 `write_file` 写入 HTML 全文。
 6. 禁止使用 `group_by="line"` 生成本技能报表；必须使用 `group_by="bandwidth"`。
+7. 禁止生成均值、均值利用率、延迟、延迟基线相关图表或明细。

@@ -30,6 +30,7 @@ REPORT_TITLE = "各线路组 7天 带宽峰值/均值 & 利用率 & 延迟 趋�
 REPORT_PERIOD = "2026-06-05 ~ 2026-06-11"
 REPORT_TYPE = "周报"  # "周报" 或 "日报"
 REPORT_DATE = datetime.now().strftime("%Y-%m-%d")
+REPORT_PROFILE = "standard"
 
 THRESHOLD_PCT = 80  # 兼容旧输入，单阈值时使用
 THRESHOLD_PCTS = [80]  # 利用率阈值百分比列表
@@ -95,7 +96,7 @@ OUTPUT_PATH = "/mnt/user-data/outputs/带宽曲线报告.html"
 
 def load_config(input_path):
     """从 JSON 文件加载报告数据配置。"""
-    global dates, REPORT_TITLE, REPORT_PERIOD, REPORT_TYPE, REPORT_DATE, THRESHOLD_PCT, THRESHOLD_PCTS, LINES, GROUPS, OUTPUT_PATH
+    global dates, REPORT_TITLE, REPORT_PERIOD, REPORT_TYPE, REPORT_DATE, REPORT_PROFILE, THRESHOLD_PCT, THRESHOLD_PCTS, LINES, GROUPS, OUTPUT_PATH
 
     with open(input_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -105,6 +106,7 @@ def load_config(input_path):
     REPORT_PERIOD = cfg.get("report_period", REPORT_PERIOD)
     REPORT_TYPE = cfg.get("report_type", REPORT_TYPE)
     REPORT_DATE = cfg.get("report_date", REPORT_DATE)
+    REPORT_PROFILE = cfg.get("report_profile", REPORT_PROFILE)
     raw_thresholds = cfg.get("threshold_pcts")
     if raw_thresholds:
         THRESHOLD_PCTS = [int(v) for v in raw_thresholds]
@@ -236,6 +238,11 @@ def line_label(line):
 def detail_rows(line):
     """生成逐日明细转置表中的指标行。"""
     label = line_label(line)
+    if REPORT_PROFILE == "vpdn":
+        return [
+            (label + " max_peak", ["%.2f" % v for v in line["mp"]]),
+            (label + " 峰值利用率", ["%.2f%%" % v for v in line["pu"]]),
+        ]
     return [
         (label + " in_peak", ["%.2f" % v for v in line["ip"]]),
         (label + " out_peak", ["%.2f" % v for v in line["op"]]),
@@ -283,13 +290,13 @@ def generate_html():
             )
         p.append('</tbody></table>')
 
-        # --- Chart 1: 带宽峰值 & 均值（含阈值线） ---
+        # --- Chart 1: 带宽峰值（含阈值线） ---
         bw_names = []
         bw_series = []
         for L in lines:
             n = line_label(L)
             c = L["color"]
-            bw_names += [n + " 峰值", n + " 均值"]
+            bw_names.append(n + " 峰值")
             s_peak = (
                 "{name:'%s 峰值',type:'line',smooth:true,symbol:'circle',symbolSize:5,"
                 "lineStyle:{color:'%s',type:'solid',width:2},"
@@ -301,7 +308,9 @@ def generate_html():
                 )
             )
             bw_series.append(s_peak)
-            bw_series.append(mk_series(n + " 均值", L["ma"], c, "dashed", 1.5))
+            if REPORT_PROFILE != "vpdn":
+                bw_names.append(n + " 均值")
+                bw_series.append(mk_series(n + " 均值", L["ma"], c, "dashed", 1.5))
 
         y_bw = max(max(L.get("bws", [L["bw"]])) for L in lines)
 
@@ -309,18 +318,21 @@ def generate_html():
         cc += 1
         chart_ids.append(cid1)
         chart_inits.append(mk_chart_js(cid1, bw_names, y_bw, "Mbps", bw_series))
-        p.append('<h3>%s - 带宽峰值 & 均值</h3>' % title)
+        bw_title = "带宽峰值" if REPORT_PROFILE == "vpdn" else "带宽峰值 & 均值"
+        p.append('<h3>%s - %s</h3>' % (title, bw_title))
         p.append('<div id="%s" class="chart-container"></div>' % cid1)
 
-        # --- Chart 2: 峰值利用率 & 均值利用率（含阈值线） ---
+        # --- Chart 2: 峰值利用率（含阈值线） ---
         ut_names = []
         ut_series = []
         for L in lines:
             n = line_label(L)
             c = L["color"]
-            ut_names += [n + " 峰值利用率", n + " 均值利用率"]
+            ut_names.append(n + " 峰值利用率")
             ut_series.append(mk_series(n + " 峰值利用率", L["pu"], c, "solid", 2))
-            ut_series.append(mk_series(n + " 均值利用率", L["au"], c, "dashed", 1.5))
+            if REPORT_PROFILE != "vpdn":
+                ut_names.append(n + " 均值利用率")
+                ut_series.append(mk_series(n + " 均值利用率", L["au"], c, "dashed", 1.5))
 
         cid2 = "c%d" % cc
         cc += 1
@@ -328,27 +340,29 @@ def generate_html():
         chart_inits.append(
             mk_chart_js(cid2, ut_names, 100, "%", ut_series, first_has_markline=True)
         )
-        p.append('<h3>%s - 峰值利用率 & 均值利用率</h3>' % title)
+        util_title = "峰值利用率" if REPORT_PROFILE == "vpdn" else "峰值利用率 & 均值利用率"
+        p.append('<h3>%s - %s</h3>' % (title, util_title))
         p.append('<div id="%s" class="chart-container"></div>' % cid2)
 
         # --- Chart 3: 延迟趋势 ---
-        lat_names = []
-        lat_series = []
-        for L in lines:
-            n = line_label(L)
-            c = L["color"]
-            lat_names += [n + " 延迟"]
-            lat_series.append(mk_series(n + " 延迟", L["lat"], c, "solid", 2))
+        if REPORT_PROFILE != "vpdn":
+            lat_names = []
+            lat_series = []
+            for L in lines:
+                n = line_label(L)
+                c = L["color"]
+                lat_names += [n + " 延迟"]
+                lat_series.append(mk_series(n + " 延迟", L["lat"], c, "solid", 2))
 
-        y_lat = round(max(max(L["lat"]) for L in lines) * 1.3, 2)
-        y_lat = max(y_lat, 1)
+            y_lat = round(max(max(L["lat"]) for L in lines) * 1.3, 2)
+            y_lat = max(y_lat, 1)
 
-        cid3 = "c%d" % cc
-        cc += 1
-        chart_ids.append(cid3)
-        chart_inits.append(mk_chart_js(cid3, lat_names, y_lat, "ms", lat_series))
-        p.append('<h3>%s - 延迟</h3>' % title)
-        p.append('<div id="%s" class="chart-container"></div>' % cid3)
+            cid3 = "c%d" % cc
+            cc += 1
+            chart_ids.append(cid3)
+            chart_inits.append(mk_chart_js(cid3, lat_names, y_lat, "ms", lat_series))
+            p.append('<h3>%s - 延迟</h3>' % title)
+            p.append('<div id="%s" class="chart-container"></div>' % cid3)
 
         # --- 逐日明细表 ---
         p.append('<h3>逐日明细</h3>')
@@ -370,10 +384,16 @@ def generate_html():
     # --- 总结汇总表 ---
     summ = ['<h2>总结</h2>']
     summ.append('<table class="data-table"><thead><tr>')
-    summ.append(
-        '<th>长途线路编号</th><th>运营商</th><th>带宽</th><th>最大峰值</th>'
-        '<th>最大峰值利用率</th><th>最大均值利用率</th><th>最大延迟</th><th>评估</th>'
-    )
+    if REPORT_PROFILE == "vpdn":
+        summ.append(
+            '<th>长途线路编号</th><th>运营商</th><th>带宽</th><th>最大峰值</th>'
+            '<th>最大峰值利用率</th><th>评估</th>'
+        )
+    else:
+        summ.append(
+            '<th>长途线路编号</th><th>运营商</th><th>带宽</th><th>最大峰值</th>'
+            '<th>最大峰值利用率</th><th>最大均值利用率</th><th>最大延迟</th><th>评估</th>'
+        )
     summ.append('</tr></thead><tbody>')
 
     for title, line_keys in GROUPS:
@@ -406,11 +426,18 @@ def generate_html():
             elif "⚠️" in st:
                 cls = ' class="warning"'
 
-            summ.append(
-                '<tr%s><td>%s</td><td>%s</td><td>%dM</td><td>%.2f Mbps</td>'
-                '<td>%.2f%%</td><td>%.2f%%</td><td>%.2f ms</td><td>%s</td></tr>'
-                % (cls, line_label(L), L["carrier"], L["bw"], mx_p, mx_pu, mx_au, mx_lat, st)
-            )
+            if REPORT_PROFILE == "vpdn":
+                summ.append(
+                    '<tr%s><td>%s</td><td>%s</td><td>%dM</td><td>%.2f Mbps</td>'
+                    '<td>%.2f%%</td><td>%s</td></tr>'
+                    % (cls, line_label(L), L["carrier"], L["bw"], mx_p, mx_pu, st)
+                )
+            else:
+                summ.append(
+                    '<tr%s><td>%s</td><td>%s</td><td>%dM</td><td>%.2f Mbps</td>'
+                    '<td>%.2f%%</td><td>%.2f%%</td><td>%.2f ms</td><td>%s</td></tr>'
+                    % (cls, line_label(L), L["carrier"], L["bw"], mx_p, mx_pu, mx_au, mx_lat, st)
+                )
 
     summ.append('</tbody></table>')
 
@@ -500,7 +527,7 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
         '<div class="legend-section">',
         '<strong>线型说明：</strong><br>',
         '<span class="legend-item"><span class="legend-line" style="border-top:2px solid #5470C6;"></span>实线 = 峰值</span>',
-        '<span class="legend-item"><span class="legend-line" style="border-top:2px dashed #5470C6;"></span>虚线 = 均值</span>',
+        '' if REPORT_PROFILE == "vpdn" else '<span class="legend-item"><span class="legend-line" style="border-top:2px dashed #5470C6;"></span>虚线 = 均值</span>',
         '<br><strong>颜色：</strong>',
         '<span class="legend-item"><span class="legend-dot" style="background:#5470C6;"></span>电信</span>',
         '<span class="legend-item"><span class="legend-dot" style="background:#EE6666;"></span>联通</span>',

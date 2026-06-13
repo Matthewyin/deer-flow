@@ -31,6 +31,26 @@ _DEFAULT_USAGE_KEYWORDS = (
 _DEFAULT_LINE_GROUPS = (
     "西五环互联网B区线路",
 )
+_VPDN_LONG_DISTANCE_NOS = {
+    "北京广州ETN2827NP",
+    "北京广州ETN2631NP",
+    "北京广州ETN2830NP",
+    "北京广州ETN2635NP",
+    "北京成都ETN2718NP",
+    "北京成都ETN2533NP",
+    "北京本地MSTPBJ1003789166",
+    "北京本地45700045",
+    "北京南京ETN2419NP",
+    "北京南京ETN2420NP",
+    "北京南京ETN2586NP",
+    "北京南京ETN2585NP",
+    "北京西安ETN6019NPH",
+    "北京西安ETN2397NP",
+    "北京昆明ETN2267NP",
+    "北京昆明ETN2182NP",
+    "北京昆明ETN2266NP",
+    "北京昆明ETN2183NP",
+}
 
 
 def _get_client() -> BandwidthLinesClient:
@@ -107,6 +127,14 @@ def _parse_threshold_pcts(value: str) -> list[int]:
     if not thresholds:
         return [80]
     return sorted(set(thresholds))
+
+
+def _is_vpdn_report(line_group: str, long_distance_no: str, report_profile: str) -> bool:
+    if report_profile == "vpdn":
+        return True
+    if "VPDN" in line_group.upper():
+        return True
+    return any(term in _VPDN_LONG_DISTANCE_NOS for term in _split_terms(long_distance_no))
 
 
 def _resolve_period(days: int, start_date: str, end_date: str, available_dates: list[str]):
@@ -312,6 +340,7 @@ def generate_bandwidth_report(
     line_scope: str = "default",
     group_by: str = "bandwidth",
     threshold_pcts: str = "",
+    report_profile: str = "",
     report_type: str = "",
     output_filename: str = "",
     include_html: bool = False,
@@ -370,8 +399,11 @@ def generate_bandwidth_report(
             },
         }
 
+    is_vpdn_report = _is_vpdn_report(line_group, long_distance_no, report_profile)
+    effective_threshold_pcts = threshold_pcts or ("35,40" if is_vpdn_report else "")
+
     try:
-        parsed_threshold_pcts = _parse_threshold_pcts(threshold_pcts)
+        parsed_threshold_pcts = _parse_threshold_pcts(effective_threshold_pcts)
     except ValueError as exc:
         return {
             "ok": False,
@@ -381,6 +413,11 @@ def generate_bandwidth_report(
 
     report_config = _build_report_config(rows, period_dates, start, end, report_type, group_by)
     report_config["threshold_pcts"] = parsed_threshold_pcts
+    report_config["report_profile"] = "vpdn" if is_vpdn_report else "standard"
+    if is_vpdn_report:
+        report_config["report_title"] = (
+            f"各线路组 {len(period_dates)}天 带宽峰值 & 峰值利用率 趋势{report_config['report_type']}"
+        )
     result = _render_html(report_config, output_filename, include_html)
     if not result.get("ok"):
         return result
@@ -399,7 +436,8 @@ def generate_bandwidth_report(
                 "line_no": line_no,
                 "line_scope": line_scope,
                 "group_by": group_by,
-                "threshold_pcts": threshold_pcts or "80",
+                "threshold_pcts": effective_threshold_pcts or "80",
+                "report_profile": "vpdn" if is_vpdn_report else "standard",
             },
         }
     )
@@ -420,6 +458,7 @@ def register(mcp: FastMCP):
         line_scope: str = "default",
         group_by: str = "bandwidth",
         threshold_pcts: str = "",
+        report_profile: str = "",
         report_type: str = "",
         output_filename: str = "",
         include_html: bool = False,
@@ -438,6 +477,7 @@ def register(mcp: FastMCP):
             line_scope: 线路范围。default 表示默认 13 条周报线路；all 表示不过滤默认集合。
             group_by: 图表分组方式。默认 bandwidth，表示相同带宽线路同图；usage 按用途分组；line 表示每条线路一套图。
             threshold_pcts: 利用率阈值百分比，多个值用逗号分隔。空值表示 80；VPDN 专线报表传 35,40。
+            report_profile: 报表口径。空值自动判断；vpdn 表示只统计峰值和峰值利用率。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。
             output_filename: 建议保存给用户的 HTML 文件名。
             include_html: 是否在工具结果中返回 HTML 全文。默认 false，避免占满上下文。
@@ -457,6 +497,7 @@ def register(mcp: FastMCP):
             line_scope=line_scope,
             group_by=group_by,
             threshold_pcts=threshold_pcts,
+            report_profile=report_profile,
             report_type=report_type,
             output_filename=output_filename,
             include_html=include_html,
