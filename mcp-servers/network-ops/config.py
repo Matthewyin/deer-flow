@@ -173,6 +173,7 @@ class ServerConfig:
     line_status_data_dir: str = ""
     bandwidth_report_script_path: str = ""
     bandwidth_report_default_output_filename: str = ""
+    bandwidth_report_output_dir: str = ""
 
     def __post_init__(self):
         if self.mysql is None:
@@ -224,6 +225,11 @@ class ServerConfig:
             self.bandwidth_report_default_output_filename = os.getenv(
                 "BANDWIDTH_REPORT_DEFAULT_OUTPUT_FILENAME",
                 "带宽曲线报告.html",
+            )
+        if not self.bandwidth_report_output_dir:
+            self.bandwidth_report_output_dir = os.getenv(
+                "BANDWIDTH_REPORT_OUTPUT_DIR",
+                "/app/backend/.deer-flow/mcp-outputs/network-ops",
             )
 
 

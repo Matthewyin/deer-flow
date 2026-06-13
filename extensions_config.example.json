@@ -16,7 +16,8 @@
         "CHROMA_PERSIST_DIR": ".deer-flow/vectors/bandwidth_policy",
         "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
         "BANDWIDTH_REPORT_SCRIPT_PATH": "/app/skills/custom/network-weekly-report/scripts/gen_report.py",
-        "BANDWIDTH_REPORT_DEFAULT_OUTPUT_FILENAME": "带宽曲线报告.html"
+        "BANDWIDTH_REPORT_DEFAULT_OUTPUT_FILENAME": "带宽曲线报告.html",
+        "BANDWIDTH_REPORT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/network-ops"
       },
       "description": "网络运维工具集：线路查询、带宽评估、统计查询、邮件生成、带宽日报周报生成"
     },

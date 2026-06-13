@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +11,21 @@ from deerflow.agents.thread_state import ThreadState
 from deerflow.config.paths import VIRTUAL_PATH_PREFIX, get_paths
 
 OUTPUTS_VIRTUAL_PREFIX = f"{VIRTUAL_PATH_PREFIX}/outputs"
+
+
+def _non_conflicting_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    index = 1
+    while True:
+        candidate = parent / f"{stem}-{index}{suffix}"
+        if not candidate.exists():
+            return candidate
+        index += 1
 
 
 def _normalize_presented_filepath(
@@ -45,11 +61,24 @@ def _normalize_presented_filepath(
     outputs_dir = Path(outputs_path).resolve()
     stripped = filepath.lstrip("/")
     virtual_prefix = VIRTUAL_PATH_PREFIX.lstrip("/")
+    mcp_outputs_dir = (get_paths().base_dir / "mcp-outputs").resolve()
 
     if stripped == virtual_prefix or stripped.startswith(virtual_prefix + "/"):
         actual_path = get_paths().resolve_virtual_path(thread_id, filepath)
     else:
         actual_path = Path(filepath).expanduser().resolve()
+
+    try:
+        actual_path.relative_to(mcp_outputs_dir)
+    except ValueError:
+        pass
+    else:
+        if not actual_path.is_file():
+            raise ValueError(f"Presented MCP output is not a file: {filepath}")
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+        target_path = _non_conflicting_path(outputs_dir / actual_path.name)
+        shutil.copy2(actual_path, target_path)
+        actual_path = target_path
 
     try:
         relative_path = actual_path.relative_to(outputs_dir)

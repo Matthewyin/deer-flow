@@ -42,7 +42,8 @@ network-ops_bandwidth_report_generate(
   usage_keyword=<用途关键词，可空>,
   long_distance_no=<线路编号，可空>,
   report_type=<周报/日报，可空>,
-  output_filename=<HTML文件名>
+  output_filename=<HTML文件名>,
+  include_html=false
 )
 ```
 
@@ -60,8 +61,9 @@ network-ops_bandwidth_report_generate(
 
 工具返回 `ok: true` 时：
 
-1. 将返回的 `html` 原样写入 `suggested_output_path`，通常是 `/mnt/user-data/outputs/带宽曲线报告.html`。
-2. 调用 `present_files` 呈现该 HTML 文件。
+1. 不要调用 `write_file`。
+2. 直接调用 `present_files`，参数使用工具返回的 `present_filepaths`。
+3. 正常情况下工具不会返回 `html` 全文，避免 HTML 内容进入上下文窗口。
 
 工具返回 `ok: false` 时，直接把错误原因反馈给用户。不要自行改写算法或临时写脚本绕过。
 
@@ -71,6 +73,7 @@ network-ops_bandwidth_report_generate(
 2. **禁止新写 `gen_weekly.py`、Python 生成器或 HTML 拼接脚本**。
 3. **禁止复制、读取、改写或直接执行 `scripts/gen_report.py`**。该脚本只作为 `network-ops_bandwidth_report_generate` 的内部渲染实现。
 4. **禁止手工计算图表 series、Y 轴、阈值线或总结表**。这些算法必须留在 MCP 工具内部。
+5. **禁止为了保存报告而调用 `write_file` 写入 HTML 全文**。报告文件由 MCP 工具生成，Agent 只调用 `present_files` 呈现。
 
 ## 图表生成规则
 

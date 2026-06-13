@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -185,17 +186,20 @@ def _build_report_config(
     }
 
 
-def _render_html(report_config: dict, output_filename: str) -> dict:
+def _render_html(report_config: dict, output_filename: str, include_html: bool) -> dict:
     cfg = get_config()
     script_path = _resolve_path(cfg.bandwidth_report_script_path)
     if not script_path.exists():
         return {"ok": False, "error": f"report script not found: {script_path}"}
 
     filename = _safe_output_filename(output_filename)
+    output_dir = _resolve_path(cfg.bandwidth_report_output_dir) / uuid.uuid4().hex
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / filename
+
     with tempfile.TemporaryDirectory(prefix="network-ops-bandwidth-report-") as tmpdir:
         tmp_path = Path(tmpdir)
         input_path = tmp_path / "report_input.json"
-        output_path = tmp_path / filename
         payload = dict(report_config)
         payload["output_path"] = str(output_path)
         input_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -232,15 +236,16 @@ def _render_html(report_config: dict, output_filename: str) -> dict:
                 "stderr": result.stderr[-4000:],
             }
 
-        html = output_path.read_text(encoding="utf-8")
-
-    return {
+    response = {
         "ok": True,
-        "html": html,
         "output_filename": filename,
-        "suggested_output_path": f"/mnt/user-data/outputs/{filename}",
+        "artifact_path": str(output_path),
+        "present_filepaths": [str(output_path)],
         "stdout": result.stdout[-2000:],
     }
+    if include_html:
+        response["html"] = output_path.read_text(encoding="utf-8")
+    return response
 
 
 def generate_bandwidth_report(
@@ -252,6 +257,7 @@ def generate_bandwidth_report(
     long_distance_no: str = "",
     report_type: str = "",
     output_filename: str = "",
+    include_html: bool = False,
 ) -> dict:
     client = _get_client()
     available_dates = client.get_available_dates()
@@ -291,7 +297,7 @@ def generate_bandwidth_report(
         }
 
     report_config = _build_report_config(rows, period_dates, start, end, report_type)
-    result = _render_html(report_config, output_filename)
+    result = _render_html(report_config, output_filename, include_html)
     if not result.get("ok"):
         return result
 
@@ -322,6 +328,7 @@ def register(mcp: FastMCP):
         long_distance_no: str = "",
         report_type: str = "",
         output_filename: str = "",
+        include_html: bool = False,
     ) -> dict:
         """直接查询带宽数据并生成 HTML 趋势报告。
 
@@ -334,9 +341,10 @@ def register(mcp: FastMCP):
             long_distance_no: 线路编号过滤，支持多个编号。
             report_type: 展示类型，通常为“周报”或“日报”；空则按天数自动判断。
             output_filename: 建议保存给用户的 HTML 文件名。
+            include_html: 是否在工具结果中返回 HTML 全文。默认 false，避免占满上下文。
 
         Returns:
-            dict: 成功时返回 html、suggested_output_path、line_count、group_count。
+            dict: 成功时返回 artifact_path、present_filepaths、line_count、group_count。
         """
         return generate_bandwidth_report(
             days=days,
@@ -347,4 +355,5 @@ def register(mcp: FastMCP):
             long_distance_no=long_distance_no,
             report_type=report_type,
             output_filename=output_filename,
+            include_html=include_html,
         )
