@@ -111,6 +111,10 @@ def _is_vpdn_report(line_group: str, long_distance_no: str, report_profile: str)
     return report_profile == "vpdn"
 
 
+def _has_vpdn_rows(rows: list[dict]) -> bool:
+    return any("VPDN" in (row.get("line_group") or "").upper() for row in rows)
+
+
 def _resolve_period(days: int, start_date: str, end_date: str, available_dates: list[str]):
     if not available_dates:
         return "", "", []
@@ -378,6 +382,22 @@ def generate_bandwidth_report(
         }
 
     is_vpdn_report = _is_vpdn_report(line_group, long_distance_no, report_profile)
+    if not is_vpdn_report and _has_vpdn_rows(rows):
+        return {
+            "ok": False,
+            "error": "VPDN 专线报表必须使用 network-ops_vpdn_report_generate，不能使用普通 bandwidth_report_generate。",
+            "period": {"start": start, "end": end},
+            "filters": {
+                "line_group": line_group,
+                "usage_keyword": usage_keyword,
+                "long_distance_no": long_distance_no,
+                "exclude_long_distance_no": exclude_long_distance_no,
+                "line_no": line_no,
+                "line_scope": line_scope,
+                "group_by": group_by,
+            },
+        }
+
     effective_threshold_pcts = threshold_pcts or ("35,40" if is_vpdn_report else "")
 
     try:
