@@ -80,6 +80,12 @@ _COLUMNS = [
 
 _ALL_COLUMNS = ["id", *_COLUMNS, "created_at"]
 
+_FORCED_BANDWIDTH_BY_LINE = {
+    ("西五环互联网B区线路", 201): 400,
+    ("西五环互联网B区线路", 202): 400,
+    ("西五环互联网B区线路", 203): 400,
+}
+
 
 def _split_long_distance_no_terms(value: str) -> list[str]:
     return [
@@ -87,6 +93,34 @@ def _split_long_distance_no_terms(value: str) -> list[str]:
         for term in re.split(r"[\s,，;；]+", value)
         if term.strip()
     ]
+
+
+def _to_float(value) -> float:
+    if value is None:
+        return 0.0
+    return float(value)
+
+
+def _to_int_or_none(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_bandwidth_policy(row: dict) -> dict:
+    key = (row.get("line_group"), _to_int_or_none(row.get("line_no")))
+    bandwidth = _FORCED_BANDWIDTH_BY_LINE.get(key)
+    if not bandwidth:
+        return row
+
+    normalized = dict(row)
+    normalized["bandwidth_mbps"] = bandwidth
+    normalized["in_peak_util_pct"] = round(_to_float(row.get("in_peak_mbps")) * 100 / bandwidth, 2)
+    normalized["out_peak_util_pct"] = round(_to_float(row.get("out_peak_mbps")) * 100 / bandwidth, 2)
+    return normalized
 
 _CREATE_MIGRATION_TABLE_SQL = """
 CREATE TABLE bandwidth_lines_new (
@@ -169,7 +203,8 @@ class BandwidthLinesClient:
         sql = f"INSERT OR IGNORE INTO bandwidth_lines ({columns_sql}) VALUES ({placeholders})"
         with sqlite3.connect(self.db_path) as conn:
             for row in rows:
-                values = tuple(row.get(col) for col in _COLUMNS)
+                normalized_row = _normalize_bandwidth_policy(row)
+                values = tuple(normalized_row.get(col) for col in _COLUMNS)
                 cur = conn.execute(sql, values)
                 if cur.rowcount > 0:
                     inserted += 1
