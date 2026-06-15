@@ -81,7 +81,7 @@ _COLUMNS = [
 _ALL_COLUMNS = ["id", *_COLUMNS, "created_at"]
 
 _FORCED_BANDWIDTH_BY_LINE = {
-    ("西五环互联网B区线路", 201): 400,
+    ("西五环互联网B区线路", 201): 500,
     ("西五环互联网B区线路", 202): 400,
     ("西五环互联网B区线路", 203): 400,
 }

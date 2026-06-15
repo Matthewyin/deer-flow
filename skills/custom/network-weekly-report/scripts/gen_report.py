@@ -35,20 +35,20 @@ REPORT_PROFILE = "standard"
 THRESHOLD_PCT = 80  # 兼容旧输入，单阈值时使用
 THRESHOLD_PCTS = [80]  # 利用率阈值百分比列表
 
-# 曲线调色板。同一图表内按线路顺序分配颜色，避免同运营商曲线颜色重复。
+# 曲线调色板。同一图表内按线路顺序分配颜色，避免颜色过近或使用红黑白灰。
 LINE_COLORS = [
-    "#2563EB",
-    "#DC2626",
-    "#16A34A",
-    "#9333EA",
-    "#EA580C",
-    "#0891B2",
-    "#BE123C",
-    "#4F46E5",
-    "#65A30D",
-    "#B45309",
-    "#0F766E",
-    "#7C3AED",
+    "#0EA5E9",  # 天蓝
+    "#F97316",  # 橙色
+    "#16A34A",  # 绿色
+    "#7C3AED",  # 紫色
+    "#CA8A04",  # 深黄色
+    "#14B8A6",  # 青绿色
+    "#4F46E5",  # 靛蓝
+    "#84CC16",  # 亮绿
+    "#D97706",  # 深橙
+    "#0891B2",  # 青蓝
+    "#9333EA",  # 亮紫
+    "#65A30D",  # 橄榄绿
 ]
 
 # 线路数据字典
@@ -487,12 +487,12 @@ body {
 }
 h1 {
     text-align: center; font-size: 22px; color: #1a1a2e;
-    border-bottom: 3px solid #5470C6; padding-bottom: 15px; margin-bottom: 10px;
+    border-bottom: 3px solid #0EA5E9; padding-bottom: 15px; margin-bottom: 10px;
 }
 .meta { text-align: center; color: #888; font-size: 14px; margin-bottom: 30px; }
 h2 {
     font-size: 18px; color: #1a1a2e; margin: 35px 0 15px 0;
-    padding-left: 12px; border-left: 4px solid #5470C6;
+    padding-left: 12px; border-left: 4px solid #0EA5E9;
 }
 h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
 .chart-container {
@@ -550,10 +550,10 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
         '<p class="meta">数据周期: %s &nbsp;|&nbsp; 报告生成时间: %s</p>' % (REPORT_PERIOD, REPORT_DATE),
         '<div class="legend-section">',
         '<strong>线型说明：</strong><br>',
-        '<span class="legend-item"><span class="legend-line" style="border-top:2px solid #5470C6;"></span>实线 = 峰值</span>',
-        '' if REPORT_PROFILE == "vpdn" else '<span class="legend-item"><span class="legend-line" style="border-top:2px dashed #5470C6;"></span>虚线 = 均值</span>',
+        '<span class="legend-item"><span class="legend-line" style="border-top:2px solid #0EA5E9;"></span>实线 = 峰值</span>',
+        '' if REPORT_PROFILE == "vpdn" else '<span class="legend-item"><span class="legend-line" style="border-top:2px dashed #0EA5E9;"></span>虚线 = 均值</span>',
         '<br><strong>颜色：</strong>',
-        '<span class="legend-item"><span class="legend-dot" style="background:#2563EB;"></span>不同颜色 = 不同线路</span>',
+        '<span class="legend-item"><span class="legend-dot" style="background:#0EA5E9;"></span>不同颜色 = 不同线路</span>',
         '<br><strong>阈值线：</strong>',
         threshold_legend,
         '</div>',
