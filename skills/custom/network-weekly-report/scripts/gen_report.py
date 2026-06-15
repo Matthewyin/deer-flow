@@ -35,18 +35,27 @@ REPORT_PROFILE = "standard"
 THRESHOLD_PCT = 80  # 兼容旧输入，单阈值时使用
 THRESHOLD_PCTS = [80]  # 利用率阈值百分比列表
 
-# 颜色映射（按运营商）
-CARRIER_COLORS = {
-    "电信": "#5470C6",
-    "联通": "#EE6666",
-    "移动": "#91CC75",
-}
+# 曲线调色板。同一图表内按线路顺序分配颜色，避免同运营商曲线颜色重复。
+LINE_COLORS = [
+    "#2563EB",
+    "#DC2626",
+    "#16A34A",
+    "#9333EA",
+    "#EA580C",
+    "#0891B2",
+    "#BE123C",
+    "#4F46E5",
+    "#65A30D",
+    "#B45309",
+    "#0F766E",
+    "#7C3AED",
+]
 
 # 线路数据字典
 # 每条线路的 key 为自定义标识，value 为包含以下字段的字典：
 #   name: 显示名称（如 "#151 电信"）
 #   long_distance_no: 长途线路编号
-#   color: 线条颜色（按运营商映射）
+#   color: 兼容旧输入，实际图表颜色由 LINE_COLORS 按图表内线路顺序分配
 #   carrier: 运营商名称
 #   bw: 当前带宽档位（Mbps）
 #   ip: 每日入向峰值带宽列表
@@ -159,6 +168,11 @@ def mk_series(name, data, color, ltype="solid", width=2):
     )
 
 
+def line_color(index):
+    """按线路顺序取曲线颜色。"""
+    return LINE_COLORS[index % len(LINE_COLORS)]
+
+
 def threshold_color(pct):
     """不同阈值使用固定颜色，便于区分多条阈值线。"""
     if pct <= 35:
@@ -172,24 +186,31 @@ def mk_threshold_markline():
     for pct in THRESHOLD_PCTS:
         color = threshold_color(pct)
         items.append(
-            "{yAxis:%d,label:{formatter:'%d%% 阈值',color:'%s'},"
+            "{yAxis:%d,label:{formatter:'%d%%',color:'%s'},"
             "lineStyle:{color:'%s',type:'dashed',width:2}}"
             % (pct, pct, color, color)
         )
     return "markLine:{silent:true,data:[%s]}" % ",".join(items)
 
 
-def mk_bw_threshold_markline(line_name, bw_mbps):
-    """生成带宽阈值 markLine（用于带宽图，每条线路一条）"""
+def format_mbps(value):
+    """格式化 Mbps 阈值标签。"""
+    if value == int(value):
+        return "%d Mbps" % int(value)
+    return "%.2f Mbps" % value
+
+
+def mk_bw_threshold_markline(bw_mbps):
+    """生成带宽阈值 markLine（用于带宽图）。"""
     items = []
     for pct in THRESHOLD_PCTS:
         color = threshold_color(pct)
         threshold_mbps = round(bw_mbps * pct / 100, 2)
         items.append(
-            "{yAxis:%s,label:{formatter:'%s %d%%(%dM×%d%%)',"
+            "{yAxis:%s,label:{formatter:'%s',"
             "color:'%s',position:'insideEndTop'},"
             "lineStyle:{color:'%s',type:'dashed',width:2}}"
-            % (threshold_mbps, line_name, pct, bw_mbps, pct, color, color)
+            % (threshold_mbps, format_mbps(threshold_mbps), color, color)
         )
     return (
         "markLine:{silent:true,symbol:'none',"
@@ -293,18 +314,21 @@ def generate_html():
         # --- Chart 1: 带宽峰值（含阈值线） ---
         bw_names = []
         bw_series = []
-        for L in lines:
+        threshold_bws = set()
+        for index, L in enumerate(lines):
             n = line_label(L)
-            c = L["color"]
+            c = line_color(index)
             bw_names.append(n + " 峰值")
+            markline = ""
+            if L["bw"] not in threshold_bws:
+                threshold_bws.add(L["bw"])
+                markline = "," + mk_bw_threshold_markline(L["bw"])
             s_peak = (
                 "{name:'%s 峰值',type:'line',smooth:true,symbol:'circle',symbolSize:5,"
                 "lineStyle:{color:'%s',type:'solid',width:2},"
-                "itemStyle:{color:'%s'},data:%s,"
-                "%s}"
+                "itemStyle:{color:'%s'},data:%s%s}"
                 % (
-                    n, c, c, L["mp"],
-                    mk_bw_threshold_markline(n, L["bw"])
+                    n, c, c, L["mp"], markline
                 )
             )
             bw_series.append(s_peak)
@@ -325,9 +349,9 @@ def generate_html():
         # --- Chart 2: 峰值利用率（含阈值线） ---
         ut_names = []
         ut_series = []
-        for L in lines:
+        for index, L in enumerate(lines):
             n = line_label(L)
-            c = L["color"]
+            c = line_color(index)
             ut_names.append(n + " 峰值利用率")
             ut_series.append(mk_series(n + " 峰值利用率", L["pu"], c, "solid", 2))
             if REPORT_PROFILE != "vpdn":
@@ -348,9 +372,9 @@ def generate_html():
         if REPORT_PROFILE != "vpdn":
             lat_names = []
             lat_series = []
-            for L in lines:
+            for index, L in enumerate(lines):
                 n = line_label(L)
-                c = L["color"]
+                c = line_color(index)
                 lat_names += [n + " 延迟"]
                 lat_series.append(mk_series(n + " 延迟", L["lat"], c, "solid", 2))
 
@@ -529,9 +553,7 @@ h3 { font-size: 15px; color: #444; margin: 20px 0 10px 0; }
         '<span class="legend-item"><span class="legend-line" style="border-top:2px solid #5470C6;"></span>实线 = 峰值</span>',
         '' if REPORT_PROFILE == "vpdn" else '<span class="legend-item"><span class="legend-line" style="border-top:2px dashed #5470C6;"></span>虚线 = 均值</span>',
         '<br><strong>颜色：</strong>',
-        '<span class="legend-item"><span class="legend-dot" style="background:#5470C6;"></span>电信</span>',
-        '<span class="legend-item"><span class="legend-dot" style="background:#EE6666;"></span>联通</span>',
-        '<span class="legend-item"><span class="legend-dot" style="background:#91CC75;"></span>移动</span>',
+        '<span class="legend-item"><span class="legend-dot" style="background:#2563EB;"></span>不同颜色 = 不同线路</span>',
         '<br><strong>阈值线：</strong>',
         threshold_legend,
         '</div>',
