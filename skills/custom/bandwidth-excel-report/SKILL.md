@@ -44,7 +44,7 @@ network-ops_bandwidth_excel_report_generate(
 - 每个 sheet 包含：
   - 线路类型
   - 线路
-  - 长途线路编号
+  - 线路编号
   - 运营商
   - 带宽
   - 阈值（带宽 × 80%）

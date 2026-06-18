@@ -121,7 +121,7 @@ def _write_workbook(rows: list[dict], dates: list[str], output_path: Path) -> No
     headers = [
         "线路类型",
         "线路",
-        "长途线路编号",
+        "线路编号",
         "运营商",
         "带宽(M)",
         "阈值(M, 带宽*80%)",

@@ -86,6 +86,20 @@ _FORCED_BANDWIDTH_BY_LINE = {
     ("西五环互联网B区线路", 203): 400,
 }
 
+_FORCED_LONG_DISTANCE_NO_BY_LINE = {
+    ("TLS终端专线", 151): "MSTPBJ1003453797",
+    ("TLS终端专线", 152): "110YTW19089212",
+    ("TLS终端专线", 153): "MSTPBJ1003608615",
+    ("TLS终端专线", 154): "110YTW20371603",
+    ("体彩APP专线", 159): "北京本地B17582400",
+    ("体彩APP专线", 160): "北京本地110YTW007389",
+    ("体彩APP专线", 161): "MSTPBJ1002296362",
+    ("体彩APP专线", 162): "110YTW12150861",
+    ("西五环互联网B区线路", 201): "B14651896",
+    ("西五环互联网B区线路", 202): "光17783",
+    ("西五环互联网B区线路", 203): "26200002474",
+}
+
 
 def _split_long_distance_no_terms(value: str) -> list[str]:
     return [
@@ -113,13 +127,17 @@ def _to_int_or_none(value) -> int | None:
 def _normalize_bandwidth_policy(row: dict) -> dict:
     key = (row.get("line_group"), _to_int_or_none(row.get("line_no")))
     bandwidth = _FORCED_BANDWIDTH_BY_LINE.get(key)
-    if not bandwidth:
+    line_no = _FORCED_LONG_DISTANCE_NO_BY_LINE.get(key)
+    if not bandwidth and not line_no:
         return row
 
     normalized = dict(row)
-    normalized["bandwidth_mbps"] = bandwidth
-    normalized["in_peak_util_pct"] = round(_to_float(row.get("in_peak_mbps")) * 100 / bandwidth, 2)
-    normalized["out_peak_util_pct"] = round(_to_float(row.get("out_peak_mbps")) * 100 / bandwidth, 2)
+    if bandwidth:
+        normalized["bandwidth_mbps"] = bandwidth
+        normalized["in_peak_util_pct"] = round(_to_float(row.get("in_peak_mbps")) * 100 / bandwidth, 2)
+        normalized["out_peak_util_pct"] = round(_to_float(row.get("out_peak_mbps")) * 100 / bandwidth, 2)
+    if line_no:
+        normalized["long_distance_no"] = line_no
     return normalized
 
 _CREATE_MIGRATION_TABLE_SQL = """
