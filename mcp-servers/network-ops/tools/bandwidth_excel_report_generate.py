@@ -93,6 +93,7 @@ def _build_rows(rows: list[dict], day: str) -> list[list]:
             [
                 row.get("line_group") or "",
                 row.get("line_no") or "",
+                row.get("long_distance_no") or "-",
                 row.get("carrier") or "",
                 bandwidth,
                 round(float(bandwidth) * 0.8, 2) if bandwidth else 0,
@@ -120,6 +121,7 @@ def _write_workbook(rows: list[dict], dates: list[str], output_path: Path) -> No
     headers = [
         "线路类型",
         "线路",
+        "长途线路编号",
         "运营商",
         "带宽(M)",
         "阈值(M, 带宽*80%)",

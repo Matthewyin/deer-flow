@@ -2,11 +2,11 @@
   {
     "name": "default_7_day_excel",
     "prompt": "生成 TLS终端专线、北单售票专线、体彩APP专线、西五环互联网B区线路近7天的带宽峰值、峰值利用率、均值和均值利用率 Excel 表",
-    "expected_output": "应该只调用一次 network-ops_bandwidth_excel_report_generate，days=7，生成一个 xlsx 文件，每天一个 sheet，固定 13 条线路。不得调用 bandwidth_records_query，不得自己写 Python 或 write_file 生成 Excel。"
+    "expected_output": "应该只调用一次 network-ops_bandwidth_excel_report_generate，days=7，生成一个 xlsx 文件，每天一个 sheet，固定 13 条线路，每个 sheet 包含长途线路编号字段。不得调用 bandwidth_records_query，不得自己写 Python 或 write_file 生成 Excel。"
   },
   {
     "name": "custom_period_excel",
     "prompt": "导出 2026-06-11 到 2026-06-17 的带宽峰值均值 Excel，每天一个 sheet",
-    "expected_output": "应该只调用一次 network-ops_bandwidth_excel_report_generate，start_date=2026-06-11，end_date=2026-06-17，生成一个 xlsx 文件并用 present_filepaths 呈现。"
+    "expected_output": "应该只调用一次 network-ops_bandwidth_excel_report_generate，start_date=2026-06-11，end_date=2026-06-17，生成一个包含长途线路编号字段的 xlsx 文件并用 present_filepaths 呈现。"
   }
 ]
