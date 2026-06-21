@@ -32,6 +32,7 @@ def _import_bandwidth_rag():
     if rag_path not in sys.path:
         sys.path.insert(0, rag_path)
     from bandwidth_rag import BandwidthRAG  # noqa: E402
+
     return BandwidthRAG
 
 
