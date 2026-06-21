@@ -46,6 +46,10 @@ def _split_hillstone_blocks(text: str) -> list[str]:
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith(("zone ", "address ", "service ", "rule id ")) and current:
+            first_line = current[0].strip()
+            if not first_line.startswith("zone "):
+                current.append(line.rstrip())
+                continue
             blocks.append("\n".join(current).strip())
             current = []
 
@@ -97,23 +101,29 @@ def _parse_service_object(block: str) -> ServiceObject:
 def _parse_policy_rule(block: str) -> PolicyRule:
     lines = [line.strip() for line in block.splitlines()]
     name = clean_name(lines[0].removeprefix("rule id "))
-    fields: dict[str, str] = {}
+    fields: dict[str, list[str]] = {}
 
     for line in lines[1:]:
         key, _, value = line.partition(" ")
-        fields[key] = value
+        fields.setdefault(key, []).append(value)
 
     if "name" in fields:
-        name = clean_name(fields["name"])
+        name = clean_name(_first(fields, "name"))
+
+    source_objects: list[str] = []
+    for key in ("src-addr", "src-ip", "src-range"):
+        source_objects.extend(fields.get(key, []))
 
     return PolicyRule(
         name=name,
-        action=clean_name(fields.get("action", "")),
+        action=clean_name(_first(fields, "action")),
         source_zones=normalize_list(fields.get("src-zone")),
         destination_zones=normalize_list(fields.get("dst-zone")),
+        source_objects=normalize_list(source_objects),
         destination_objects=normalize_list(fields.get("dst-addr")),
         services=normalize_list(fields.get("service")),
-        logging=bool_from_text(fields.get("log", "")),
+        logging=bool_from_text(_first(fields, "log")),
+        enabled="disable" not in fields,
         raw=block,
     )
 
@@ -121,3 +131,8 @@ def _parse_policy_rule(block: str) -> PolicyRule:
 def _quoted_name(line: str) -> str:
     match = re.search(r'"([^"]+)"', line)
     return clean_name(match.group(1)) if match else clean_name(line)
+
+
+def _first(fields: dict[str, list[str]], key: str) -> str:
+    values = fields.get(key, [])
+    return values[0] if values else ""

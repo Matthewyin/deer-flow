@@ -87,22 +87,33 @@ def _parse_policy_rule(block: str) -> PolicyRule:
     lines = [line.strip() for line in block.splitlines()]
     name_match = re.match(r'rule name "?([^"]+)"?', lines[0])
     name = clean_name(name_match.group(1)) if name_match else lines[0]
-    fields: dict[str, str] = {}
+    fields: dict[str, list[str]] = {}
 
     for line in lines[1:]:
         key, _, value = line.partition(" ")
-        fields[key] = value
+        fields.setdefault(key, []).append(value)
 
-    destination = fields.get("destination-address", "")
-    if destination.startswith("address-set "):
-        destination = destination.removeprefix("address-set ")
+    sources = [_strip_address_set(value) for value in fields.get("source-address", [])]
+    destinations = [_strip_address_set(value) for value in fields.get("destination-address", [])]
 
     return PolicyRule(
         name=name,
-        action=clean_name(fields.get("action", "")),
+        action=clean_name(_first(fields, "action")),
         source_zones=normalize_list(fields.get("source-zone")),
         destination_zones=normalize_list(fields.get("destination-zone")),
-        destination_objects=normalize_list(destination),
+        source_objects=normalize_list(sources),
+        destination_objects=normalize_list(destinations),
         services=normalize_list(fields.get("service")),
         raw=block,
     )
+
+
+def _strip_address_set(value: str) -> str:
+    if value.startswith("address-set "):
+        return value.removeprefix("address-set ")
+    return value
+
+
+def _first(fields: dict[str, list[str]], key: str) -> str:
+    values = fields.get(key, [])
+    return values[0] if values else ""

@@ -77,17 +77,17 @@ def _parse_policy_rule(block: str) -> PolicyRule:
     lines = [line.strip() for line in block.splitlines()]
     header_match = re.match(r"rule\s+\S+\s+name\s+(.+)", lines[0])
     name = clean_name(header_match.group(1)) if header_match else lines[0]
-    fields: dict[str, str] = {}
+    fields: dict[str, list[str]] = {}
 
     for line in lines[1:]:
         key, _, value = line.partition(" ")
-        fields[key] = value
+        fields.setdefault(key, []).append(value)
 
-    logging = bool_from_text(fields.get("logging", ""))
+    logging = bool_from_text(_first(fields, "logging"))
 
     return PolicyRule(
         name=name,
-        action=clean_name(fields.get("action", "")),
+        action=clean_name(_first(fields, "action")),
         source_zones=normalize_list(fields.get("source-zone")),
         destination_zones=normalize_list(fields.get("destination-zone")),
         source_objects=normalize_list(fields.get("source-ip")),
@@ -96,3 +96,8 @@ def _parse_policy_rule(block: str) -> PolicyRule:
         logging=logging,
         raw=block,
     )
+
+
+def _first(fields: dict[str, list[str]], key: str) -> str:
+    values = fields.get(key, [])
+    return values[0] if values else ""

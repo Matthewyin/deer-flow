@@ -25,9 +25,9 @@ def split_blocks(text: str, delimiter: str = "#") -> list[str]:
 
 def bool_from_text(value: str) -> bool | None:
     normalized = value.strip().lower()
-    if normalized in {"enable", "enabled", "yes", "true", "on"}:
+    if normalized in {"enable", "enabled", "yes", "true", "on", "permit", "pass"}:
         return True
-    if normalized in {"disable", "disabled", "no", "false", "off"}:
+    if normalized in {"disable", "disabled", "no", "false", "off", "deny", "drop"}:
         return False
     return None
 
@@ -39,4 +39,11 @@ def normalize_list(value: str | Iterable[str] | None) -> list[str]:
         values = [value]
     else:
         values = list(value)
-    return [clean_name(item) for item in values if clean_name(item)]
+
+    normalized: list[str] = []
+    for item in values:
+        cleaned = clean_name(item)
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+
+    return normalized
