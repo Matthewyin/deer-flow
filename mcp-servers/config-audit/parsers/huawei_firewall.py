@@ -45,6 +45,8 @@ def _parse_address_object(block: str) -> AddressObject:
     for line in lines[1:]:
         if match := re.match(r"address\s+\S+\s+(\S+)\s+mask\s+(\S+)", line):
             values.append(f"{clean_name(match.group(1))}/{clean_name(match.group(2))}")
+        elif match := re.match(r"address\s+\S+\s+range\s+(\S+)\s+(\S+)", line):
+            values.append(f"{clean_name(match.group(1))}-{clean_name(match.group(2))}")
 
     return AddressObject(name=name, values=values, object_type="ip", raw=block)
 

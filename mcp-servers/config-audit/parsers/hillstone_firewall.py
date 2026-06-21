@@ -80,6 +80,10 @@ def _parse_address_object(block: str) -> AddressObject:
     for line in lines[1:]:
         if line.startswith("host "):
             values.append(clean_name(line.removeprefix("host ")))
+        elif line.startswith("ip "):
+            values.append(clean_name(line.removeprefix("ip ")))
+        elif match := re.match(r"range\s+(\S+)\s+(\S+)", line):
+            values.append(f"{clean_name(match.group(1))}-{clean_name(match.group(2))}")
 
     return AddressObject(name=name, values=values, object_type="ip", raw=block)
 
@@ -113,6 +117,9 @@ def _parse_policy_rule(block: str) -> PolicyRule:
     source_objects: list[str] = []
     for key in ("src-addr", "src-ip", "src-range"):
         source_objects.extend(fields.get(key, []))
+    destination_objects: list[str] = []
+    for key in ("dst-addr", "dst-ip", "dst-range"):
+        destination_objects.extend(fields.get(key, []))
 
     return PolicyRule(
         name=name,
@@ -120,7 +127,7 @@ def _parse_policy_rule(block: str) -> PolicyRule:
         source_zones=normalize_list(fields.get("src-zone")),
         destination_zones=normalize_list(fields.get("dst-zone")),
         source_objects=normalize_list(source_objects),
-        destination_objects=normalize_list(fields.get("dst-addr")),
+        destination_objects=normalize_list(destination_objects),
         services=normalize_list(fields.get("service")),
         logging=bool_from_text(_first(fields, "log")),
         enabled="disable" not in fields,

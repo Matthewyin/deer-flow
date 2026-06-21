@@ -55,6 +55,10 @@ def _parse_address_object(block: str) -> AddressObject:
             zone = clean_name(line.removeprefix("security-zone "))
         elif match := re.search(r"\bnetwork host address (\S+)", line):
             values.append(clean_name(match.group(1)))
+        elif match := re.search(r"\bnetwork subnet(?: address)? (\S+) (\S+)", line):
+            values.append(f"{clean_name(match.group(1))}/{clean_name(match.group(2))}")
+        elif match := re.search(r"\bnetwork range (\S+) (\S+)", line):
+            values.append(f"{clean_name(match.group(1))}-{clean_name(match.group(2))}")
 
     return AddressObject(name=name, values=values, object_type="ip", zone=zone, raw=block)
 
