@@ -44,10 +44,74 @@ mcp_servers:
   "command": "/opt/venv/bin/python",
   "args": ["/app/mcp-servers/config-audit/server.py"],
   "env": {
-    "CONFIG_AUDIT_DATA_DIR": ".deer-flow/config-audit",
-    "CONFIG_AUDIT_OUTPUT_DIR": ".deer-flow/mcp-outputs/config-audit"
+    "CONFIG_AUDIT_DATA_DIR": "/app/backend/.deer-flow/config-audit",
+    "CONFIG_AUDIT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/config-audit"
   }
 }
+```
+
+如果不在 Docker 容器内运行，而是在 `backend/` 目录直接启动服务，可以使用相对路径：
+
+```json
+{
+  "CONFIG_AUDIT_DATA_DIR": ".deer-flow/config-audit",
+  "CONFIG_AUDIT_OUTPUT_DIR": ".deer-flow/mcp-outputs/config-audit"
+}
+```
+
+## 启用检查清单
+
+代码合并后，界面不会自动出现 `config-audit` Agent。必须完成以下运行态操作：
+
+1. 创建 `backend/.deer-flow/agents/config-audit/config.yaml` 和 `SOUL.md`。
+2. 在实际使用的 `extensions_config.json` 中启用 `config-audit` MCP server。
+3. 重启 DeerFlow 运行服务。
+4. 验证 API 已能看到 Agent 和 MCP server。
+
+Docker 开发环境可使用：
+
+```bash
+DEER_FLOW_ROOT=/Users/matthewyin/Coding/docker/deer-flow \
+docker compose -f docker/docker-compose-dev.yaml restart langgraph gateway frontend nginx
+```
+
+验证命令：
+
+```bash
+curl -s http://localhost:2026/api/agents \
+  | python3 -c 'import sys,json; print("\n".join(a["name"] for a in json.load(sys.stdin)["agents"]))'
+
+curl -s http://localhost:2026/api/mcp/config \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["mcp_servers"].get("config-audit"))'
+```
+
+预期：
+
+- Agent 列表包含 `config-audit`。
+- MCP 配置中 `config-audit.enabled` 为 `true`。
+
+## 502 排查
+
+如果重启后浏览器出现 `502 Bad Gateway`，先判断是 API 还是前端页面：
+
+```bash
+curl -I http://localhost:2026/
+curl -s http://localhost:2026/api/agents
+docker logs deer-flow-nginx --tail 80
+```
+
+若 API 正常但页面 502，通常是 nginx 仍缓存了旧的 frontend upstream。单独重启 nginx：
+
+```bash
+DEER_FLOW_ROOT=/Users/matthewyin/Coding/docker/deer-flow \
+docker compose -f docker/docker-compose-dev.yaml restart nginx
+```
+
+再次验证：
+
+```bash
+curl -I http://localhost:2026/
+curl -I http://localhost:2026/workspace/agents
 ```
 
 ## 验证入口
