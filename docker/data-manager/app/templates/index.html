@@ -42,6 +42,11 @@ th { color: #888; font-weight: 600; }
 .upload-area { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
 .upload-area input[type="file"] { font-size: 13px; }
 .loading { opacity: 0.6; pointer-events: none; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field label { font-size: 12px; color: #666; }
+.form-field input, .form-field select { width: 100%; }
+.muted { color: #888; font-size: 12px; }
 
 /* Probe tab — operation bar */
 .probe-op-bar { display: flex; align-items: center; gap: 16px; padding: 14px 20px; flex-wrap: wrap; }
@@ -111,6 +116,7 @@ th { color: #888; font-weight: 600; }
   <div class="tab" data-tab="bandwidth">带宽策略</div>
   <div class="tab" data-tab="line-status">线路状态</div>
   <div class="tab" data-tab="world-cup">世界杯数据</div>
+  <div class="tab" data-tab="device-config">设备配置</div>
 </div>
 
 <div id="message"></div>
@@ -258,6 +264,56 @@ th { color: #888; font-weight: 600; }
     </div>
   </div>
 
+  <!-- Tab 7: Device Config -->
+  <div class="panel" id="panel-device-config">
+    <div class="card">
+      <h2>设备配置批量导入</h2>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>厂商</label>
+          <select id="dc-vendor"></select>
+        </div>
+        <div class="form-field">
+          <label>设备类型</label>
+          <select id="dc-device-type"></select>
+        </div>
+        <div class="form-field">
+          <label>批次名称</label>
+          <input id="dc-batch-name" type="text" placeholder="可选">
+        </div>
+        <div class="form-field">
+          <label>标准区域</label>
+          <input id="dc-standard-zone" type="text" placeholder="如 internet_edge，可选">
+        </div>
+        <div class="form-field">
+          <label>设备角色</label>
+          <input id="dc-role" type="text" placeholder="如 border_firewall，可选">
+        </div>
+        <div class="form-field">
+          <label>站点</label>
+          <input id="dc-site-name" type="text" placeholder="可选">
+        </div>
+        <div class="form-field">
+          <label>本地网</label>
+          <input id="dc-local-area-name" type="text" placeholder="可选">
+        </div>
+      </div>
+      <div class="upload-area">
+        <input type="file" id="dc-files" accept=".txt" multiple>
+        <button class="btn btn-primary" onclick="dcUpload()">批量导入</button>
+        <button class="btn" onclick="dcLoad()">刷新列表</button>
+      </div>
+      <div id="dc-status" class="info">配置文件会保存到共享目录，供 config-audit Agent 读取和解析。首版仅接收 .txt 文件。</div>
+    </div>
+    <div class="card">
+      <h2>已导入批次</h2>
+      <table>
+        <thead><tr><th>导入批次</th><th>厂商</th><th>设备类型</th><th>文件数</th><th>目录</th><th>导入时间</th></tr></thead>
+        <tbody id="dc-imports"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -275,6 +331,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.tab === 'bandwidth') bwLoadStatus();
     if (tab.dataset.tab === 'line-status') lsLoadStatus();
     if (tab.dataset.tab === 'world-cup') wcLoadStatus();
+    if (tab.dataset.tab === 'device-config') dcInit();
   };
 });
 
@@ -855,6 +912,100 @@ async function lsDeleteSelected() {
 
 function wcEscape(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function dcEscape(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function dcInit() {
+  if (!window._dcOptionsLoaded) {
+    try {
+      const r = await fetch(API + '/api/device-configs/options');
+      const d = await r.json();
+      const vendorSel = document.getElementById('dc-vendor');
+      const typeSel = document.getElementById('dc-device-type');
+      vendorSel.innerHTML = '';
+      typeSel.innerHTML = '';
+      (d.vendors || []).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.value;
+        opt.textContent = v.label;
+        vendorSel.appendChild(opt);
+      });
+      (d.device_types || []).forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.value;
+        opt.textContent = t.label;
+        typeSel.appendChild(opt);
+      });
+      window._dcOptionsLoaded = true;
+      document.getElementById('dc-status').innerHTML = `<strong>共享目录：</strong>${dcEscape(d.base_dir || '-')}`;
+    } catch (e) {
+      showMsg('加载设备配置选项失败：' + e.message, true, 'DC_OPTIONS_ERROR');
+      return;
+    }
+  }
+  dcLoad();
+}
+
+async function dcLoad() {
+  try {
+    const r = await fetch(API + '/api/device-configs/imports');
+    const d = await r.json();
+    const tbody = document.getElementById('dc-imports');
+    tbody.innerHTML = '';
+    const rows = d.imports || [];
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">暂无导入批次</td></tr>';
+      return;
+    }
+    rows.forEach(item => {
+      const tr = document.createElement('tr');
+      const batch = item.batch_name
+        ? `${dcEscape(item.batch_name)}<br><span class="muted">${dcEscape(item.import_id)}</span>`
+        : dcEscape(item.import_id);
+      tr.innerHTML = `<td>${batch}</td><td>${dcEscape(item.vendor_label || item.vendor)}</td>
+        <td>${dcEscape(item.device_type_label || item.device_type)}</td><td>${item.file_count || 0}</td>
+        <td class="muted">${dcEscape(item.storage_dir || '-')}</td><td>${item.created_at ? fmtTime(item.created_at) : '-'}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    showMsg('加载设备配置导入列表失败：' + e.message, true, 'DC_LOAD_ERROR');
+  }
+}
+
+async function dcUpload() {
+  const fileInput = document.getElementById('dc-files');
+  if (!fileInput.files.length) { showMsg('请选择 .txt 配置文件', true, 'DC_NO_FILE'); return; }
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '导入中...';
+  const fd = new FormData();
+  fd.append('vendor', document.getElementById('dc-vendor').value);
+  fd.append('device_type', document.getElementById('dc-device-type').value);
+  fd.append('batch_name', document.getElementById('dc-batch-name').value);
+  fd.append('standard_zone', document.getElementById('dc-standard-zone').value);
+  fd.append('role', document.getElementById('dc-role').value);
+  fd.append('site_name', document.getElementById('dc-site-name').value);
+  fd.append('local_area_name', document.getElementById('dc-local-area-name').value);
+  [...fileInput.files].forEach(file => fd.append('files', file));
+  try {
+    const r = await fetch(API + '/api/device-configs/imports', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) {
+      showMsg('导入失败：' + (d.detail || JSON.stringify(d)), true, 'DC_UPLOAD_ERROR');
+      return;
+    }
+    showMsg(`导入成功：${d.file_count || 0} 个配置文件`, false);
+    fileInput.value = '';
+    dcLoad();
+  } catch (e) {
+    showMsg('导入失败：' + e.message, true, 'DC_NETWORK_ERROR');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '批量导入';
+  }
 }
 
 async function wcLoadStatus() {

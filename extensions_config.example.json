@@ -28,7 +28,8 @@
       "args": ["/app/mcp-servers/config-audit/server.py"],
       "env": {
         "CONFIG_AUDIT_DATA_DIR": "/app/backend/.deer-flow/config-audit",
-        "CONFIG_AUDIT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/config-audit"
+        "CONFIG_AUDIT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/config-audit",
+        "CONFIG_AUDIT_IMPORT_DIR": "/app/.deer-flow/device-configs"
       },
       "description": "设备配置审查：防火墙配置解析、标准模板反推、配置差异检查、脚本片段检查和报告导出"
     },

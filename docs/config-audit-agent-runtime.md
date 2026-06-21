@@ -45,7 +45,8 @@ mcp_servers:
   "args": ["/app/mcp-servers/config-audit/server.py"],
   "env": {
     "CONFIG_AUDIT_DATA_DIR": "/app/backend/.deer-flow/config-audit",
-    "CONFIG_AUDIT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/config-audit"
+    "CONFIG_AUDIT_OUTPUT_DIR": "/app/backend/.deer-flow/mcp-outputs/config-audit",
+    "CONFIG_AUDIT_IMPORT_DIR": "/app/.deer-flow/device-configs"
   }
 }
 ```
@@ -55,8 +56,49 @@ mcp_servers:
 ```json
 {
   "CONFIG_AUDIT_DATA_DIR": ".deer-flow/config-audit",
-  "CONFIG_AUDIT_OUTPUT_DIR": ".deer-flow/mcp-outputs/config-audit"
+  "CONFIG_AUDIT_OUTPUT_DIR": ".deer-flow/mcp-outputs/config-audit",
+  "CONFIG_AUDIT_IMPORT_DIR": ".deer-flow/device-configs"
 }
+```
+
+## 配置资产导入链路
+
+防火墙配置文件先通过 data-manager 导入，不建议让 Agent 直接处理浏览器上传文件。
+
+导入入口：
+
+```text
+http://localhost:2026/data-manager/
+```
+
+进入“设备配置”选项卡后，选择厂商、设备类型，并批量上传 `.txt` 配置文件。data-manager 会把文件保存到共享目录：
+
+```text
+/app/.deer-flow/device-configs/{device_type}/{vendor}/{import_id}/
+```
+
+该目录来自 data-manager 的 `DEVICE_CONFIG_IMPORT_DIR`，默认值为 `/app/.deer-flow/device-configs`。langgraph 容器内的 config-audit MCP 通过 `CONFIG_AUDIT_IMPORT_DIR` 读取同一目录。
+
+当前导入页支持的元数据：
+
+- 厂商：华为、华三、山石、F5、深信服
+- 设备类型：防火墙、路由器、交换机、负载均衡
+- 批次名称、标准区域、设备角色、站点、本地网
+
+当前 config-audit MCP 只解析 H3C、Huawei、Hillstone 防火墙。F5、深信服、路由器、交换机、负载均衡会被保存为配置资产，但解析工具会返回“暂不支持解析”。
+
+Agent 侧建议流程：
+
+1. 调用 `config_audit_list_import_batches` 查看 data-manager 已导入批次。
+2. 调用 `config_audit_parse_import_batch` 解析目标批次。
+3. 用解析结果调用 `config_audit_infer_template` 生成 draft 模板。
+4. 人工复核后，再调用模板审核、配置对比或脚本片段检查工具。
+
+data-manager 代码变更后需要重建容器：
+
+```bash
+DEER_FLOW_ROOT=/Users/matthewyin/Coding/docker/deer-flow \
+docker compose -f docker/docker-compose-dev.yaml up -d --build data-manager
 ```
 
 ## 启用检查清单
