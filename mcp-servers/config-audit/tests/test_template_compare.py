@@ -136,7 +136,7 @@ def test_compare_reports_missing_required_module():
     ]
 
 
-def test_compare_reports_policy_logging_false_only():
+def test_compare_reports_policy_logging_false_and_unknown():
     result = compare_config_to_template(
         _config(
             "fw-a",
@@ -174,9 +174,12 @@ def test_compare_reports_policy_logging_false_only():
         (finding.severity, finding.finding_type, finding.actual)
         for finding in result.findings
     ] == [
-        ("medium", "risky", "策略 not_logged 未开启日志")
+        ("info", "unknown", "无法确认策略 unknown 是否开启日志"),
+        ("medium", "risky", "策略 not_logged 未开启日志"),
     ]
-    assert "日志" in result.findings[0].recommendation
+    assert all("日志" in finding.recommendation for finding in result.findings)
+    assert "policy_rules" not in result.matched
+    assert "zones" in result.matched
 
 
 @pytest.mark.parametrize(
@@ -239,6 +242,29 @@ def test_compare_does_not_report_deny_any_to_any():
     assert result.findings == []
 
 
+def test_compare_skips_disabled_policy_risks():
+    result = compare_config_to_template(
+        _config(
+            "fw-a",
+            policy_rules=[
+                PolicyRule(
+                    name="disabled_any",
+                    action="permit",
+                    source_objects=["any"],
+                    destination_objects=["any"],
+                    services=["any"],
+                    logging=False,
+                    enabled=False,
+                ),
+            ],
+        ),
+        _approved_template(require_logging=True, forbid_any_to_any_permit=True),
+    )
+
+    assert result.findings == []
+    assert "policy_rules" in result.matched
+
+
 def test_check_snippet_without_current_adds_info_unknown():
     result = check_snippet_against_template(
         _config("snippet"),
@@ -259,6 +285,65 @@ def test_check_snippet_with_current_does_not_add_info_unknown():
     )
 
     assert all(finding.finding_type != "unknown" for finding in result.findings)
+
+
+def test_check_snippet_with_current_merges_non_empty_modules():
+    result = check_snippet_against_template(
+        _config(
+            "snippet",
+            zones=[],
+            address_objects=[],
+            service_objects=[],
+            policy_rules=[
+                PolicyRule(
+                    name="snippet_without_logging",
+                    action="permit",
+                    source_objects=["host-a"],
+                    destination_objects=["host-b"],
+                    services=["https"],
+                    logging=False,
+                ),
+            ],
+        ),
+        _approved_template(),
+        current=_config("current"),
+    )
+
+    assert ("medium", "risky", "policy_rules") in [
+        (finding.severity, finding.finding_type, finding.module)
+        for finding in result.findings
+    ]
+    assert all(finding.finding_type != "missing" for finding in result.findings)
+    assert all(finding.module != "config" for finding in result.findings)
+    assert "zones" in result.matched
+    assert "policy_rules" not in result.matched
+
+
+def test_compare_matched_excludes_modules_with_findings():
+    result = compare_config_to_template(
+        _config(
+            "fw-a",
+            policy_rules=[
+                PolicyRule(
+                    name="unknown_logging",
+                    action="permit",
+                    source_objects=["host-a"],
+                    destination_objects=["host-b"],
+                    services=["https"],
+                    logging=None,
+                ),
+            ],
+        ),
+        _approved_template(required_modules=["zones", "policy_rules"]),
+    )
+
+    assert result.matched == ["zones"]
+    assert [
+        (finding.severity, finding.module, finding.finding_type)
+        for finding in result.findings
+    ] == [
+        ("info", "policy_rules", "unknown")
+    ]
 
 
 def _config(

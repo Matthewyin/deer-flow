@@ -4,16 +4,26 @@ from core.model import ConfigFinding, ConfigTemplate, CompareResult, NormalizedC
 
 
 PERMIT_ACTIONS = {"permit", "pass", "allow"}
+LIST_MODULES = [
+    "zones",
+    "interfaces",
+    "address_objects",
+    "service_objects",
+    "policy_rules",
+    "nat_rules",
+    "routes",
+    "management_access",
+    "logging",
+    "unparsed_blocks",
+]
 
 
 def compare_config_to_template(config: NormalizedConfig, template: ConfigTemplate) -> CompareResult:
     findings: list[ConfigFinding] = []
-    matched: list[str] = []
 
     for module in template.required_modules:
         value = getattr(config, module, None)
         if value:
-            matched.append(module)
             continue
 
         findings.append(
@@ -33,6 +43,9 @@ def compare_config_to_template(config: NormalizedConfig, template: ConfigTemplat
     if isinstance(policy_patterns, dict):
         if policy_patterns.get("require_logging") is True:
             for rule in config.policy_rules:
+                if not rule.enabled:
+                    continue
+
                 if rule.logging is False:
                     findings.append(
                         _finding(
@@ -46,9 +59,25 @@ def compare_config_to_template(config: NormalizedConfig, template: ConfigTemplat
                             recommendation="开启该策略日志，确保访问行为可追溯",
                         )
                     )
+                elif rule.logging is None:
+                    findings.append(
+                        _finding(
+                            findings,
+                            severity="info",
+                            module="policy_rules",
+                            finding_type="unknown",
+                            expected="策略开启日志",
+                            actual=f"无法确认策略 {rule.name} 是否开启日志",
+                            evidence=rule.raw or rule.name,
+                            recommendation="确认该策略日志状态，必要时开启日志",
+                        )
+                    )
 
         if policy_patterns.get("forbid_any_to_any_permit") is True:
             for rule in config.policy_rules:
+                if not rule.enabled:
+                    continue
+
                 if _is_any_to_any_permit(rule):
                     findings.append(
                         _finding(
@@ -65,6 +94,13 @@ def compare_config_to_template(config: NormalizedConfig, template: ConfigTemplat
                         )
                     )
 
+    finding_modules = {finding.module for finding in findings}
+    matched = [
+        module
+        for module in template.required_modules
+        if getattr(config, module, None) and module not in finding_modules
+    ]
+
     return CompareResult(template_id=template.template_id, findings=findings, matched=matched)
 
 
@@ -73,7 +109,8 @@ def check_snippet_against_template(
     template: ConfigTemplate,
     current: NormalizedConfig | None = None,
 ) -> CompareResult:
-    result = compare_config_to_template(snippet, template)
+    target = snippet if current is None else _merge_snippet_into_current(snippet, current)
+    result = compare_config_to_template(target, template)
     if current is None:
         result.findings.append(
             _finding(
@@ -88,6 +125,19 @@ def check_snippet_against_template(
             )
         )
     return result
+
+
+def _merge_snippet_into_current(
+    snippet: NormalizedConfig,
+    current: NormalizedConfig,
+) -> NormalizedConfig:
+    merged = current.model_copy(deep=True)
+    for module in LIST_MODULES:
+        snippet_value = getattr(snippet, module)
+        if snippet_value:
+            current_value = getattr(merged, module)
+            setattr(merged, module, [*current_value, *snippet_value])
+    return merged
 
 
 def _is_any_to_any_permit(rule: PolicyRule) -> bool:
