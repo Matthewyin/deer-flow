@@ -26,6 +26,7 @@ from core.model import (
 
 EXCEL_FILENAME = "配置审查事实表.xlsx"
 MARKDOWN_FILENAME = "配置审查报告.md"
+VIRTUAL_OUTPUT_PREFIX = "/mnt/user-data/outputs/.mcp/config-audit"
 
 MODULE_SHEETS = [
     "zones",
@@ -79,7 +80,7 @@ def export_report(
     _write_excel(config, compare, excel_path)
     _write_markdown(config, compare, markdown_path, agent_analysis)
 
-    paths = [str(excel_path), str(markdown_path)]
+    paths = _present_filepaths(report_dir.name)
     return ReportPaths(
         excel_path=str(excel_path),
         markdown_path=str(markdown_path),
@@ -99,6 +100,13 @@ def _create_report_dir(output_dir: str | Path) -> Path:
         except FileExistsError:
             continue
     raise FileExistsError("无法创建唯一的配置审查报告目录")
+
+
+def _present_filepaths(artifact_id: str) -> list[str]:
+    return [
+        f"{VIRTUAL_OUTPUT_PREFIX}/{artifact_id}/{EXCEL_FILENAME}",
+        f"{VIRTUAL_OUTPUT_PREFIX}/{artifact_id}/{MARKDOWN_FILENAME}",
+    ]
 
 
 def _write_excel(config: NormalizedConfig, compare: CompareResult, excel_path: Path) -> None:

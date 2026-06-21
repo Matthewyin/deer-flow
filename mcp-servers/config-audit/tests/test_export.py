@@ -51,7 +51,17 @@ def test_export_report_writes_excel_markdown_and_present_paths(tmp_path):
 
     assert excel_path.exists()
     assert markdown_path.exists()
-    assert paths.present_filepaths == [str(excel_path), str(markdown_path)]
+    assert all(
+        path.startswith("/mnt/user-data/outputs/.mcp/config-audit/")
+        for path in paths.present_filepaths
+    )
+    assert paths.present_filepaths[0].endswith("/配置审查事实表.xlsx")
+    assert paths.present_filepaths[1].endswith("/配置审查报告.md")
+    artifact_ids = {
+        Path(path).parts[-2]
+        for path in paths.present_filepaths
+    }
+    assert artifact_ids == {excel_path.parent.name}
 
     workbook = load_workbook(excel_path)
     assert {
@@ -83,6 +93,18 @@ def test_export_report_writes_excel_markdown_and_present_paths(tmp_path):
     ]
     assert findings["A2"].value == "F-0001"
     assert findings["I2"].value == "收敛源、目的和服务范围，避免 any 到 any 放行"
+
+    nat_rules = workbook["nat_rules"]
+    assert nat_rules.max_row == 2
+    assert [cell.value for cell in nat_rules[1]] == [
+        "name",
+        "nat_type",
+        "source",
+        "destination",
+        "translated",
+        "raw",
+    ]
+    assert nat_rules["A2"].value == "无数据"
 
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "# 配置审查报告" in markdown
