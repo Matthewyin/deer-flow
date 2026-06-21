@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.model import (  # noqa: E402
     AddressObject,
+    ConfigTemplate,
     DeviceProfile,
     ManagementAccess,
     NormalizedConfig,
@@ -14,6 +15,7 @@ from core.model import (  # noqa: E402
     ServiceObject,
     Zone,
 )
+from core.compare import check_snippet_against_template, compare_config_to_template  # noqa: E402
 from core.template import infer_template, load_template, save_approved_template  # noqa: E402
 
 
@@ -119,11 +121,152 @@ def test_infer_template_rejects_empty_configs():
         infer_template([], standard_zone="dmz", role="border_firewall")
 
 
+def test_compare_reports_missing_required_module():
+    result = compare_config_to_template(
+        _config("fw-a", service_objects=[]),
+        _approved_template(required_modules=["zones", "service_objects"]),
+    )
+
+    assert result.matched == ["zones"]
+    assert [
+        (finding.finding_id, finding.severity, finding.module, finding.finding_type)
+        for finding in result.findings
+    ] == [
+        ("F-0001", "high", "service_objects", "missing")
+    ]
+
+
+def test_compare_reports_policy_logging_false_only():
+    result = compare_config_to_template(
+        _config(
+            "fw-a",
+            policy_rules=[
+                PolicyRule(
+                    name="logged",
+                    action="permit",
+                    source_objects=["host-a"],
+                    destination_objects=["host-b"],
+                    services=["https"],
+                    logging=True,
+                ),
+                PolicyRule(
+                    name="unknown",
+                    action="permit",
+                    source_objects=["host-a"],
+                    destination_objects=["host-b"],
+                    services=["https"],
+                    logging=None,
+                ),
+                PolicyRule(
+                    name="not_logged",
+                    action="permit",
+                    source_objects=["host-a"],
+                    destination_objects=["host-b"],
+                    services=["https"],
+                    logging=False,
+                ),
+            ],
+        ),
+        _approved_template(require_logging=True, forbid_any_to_any_permit=False),
+    )
+
+    assert [
+        (finding.severity, finding.finding_type, finding.actual)
+        for finding in result.findings
+    ] == [
+        ("medium", "risky", "策略 not_logged 未开启日志")
+    ]
+    assert "日志" in result.findings[0].recommendation
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        PolicyRule(
+            name="permit_upper",
+            action="PERMIT",
+            source_objects=["ANY"],
+            destination_objects=["any"],
+            services=["any"],
+        ),
+        PolicyRule(
+            name="pass_empty",
+            action="pass",
+            source_objects=[],
+            destination_objects=[],
+            services=[],
+        ),
+        PolicyRule(
+            name="allow_mixed",
+            action="Allow",
+            source_objects=["host-a", "any"],
+            destination_objects=["ANY"],
+            services=["tcp", "Any"],
+        ),
+    ],
+)
+def test_compare_reports_any_to_any_permit_actions(rule):
+    result = compare_config_to_template(
+        _config("fw-a", policy_rules=[rule]),
+        _approved_template(require_logging=False, forbid_any_to_any_permit=True),
+    )
+
+    assert [
+        (finding.severity, finding.module, finding.finding_type)
+        for finding in result.findings
+    ] == [
+        ("high", "policy_rules", "risky")
+    ]
+
+
+def test_compare_does_not_report_deny_any_to_any():
+    result = compare_config_to_template(
+        _config(
+            "fw-a",
+            policy_rules=[
+                PolicyRule(
+                    name="deny_any",
+                    action="deny",
+                    source_objects=["any"],
+                    destination_objects=["any"],
+                    services=["any"],
+                ),
+            ],
+        ),
+        _approved_template(require_logging=False, forbid_any_to_any_permit=True),
+    )
+
+    assert result.findings == []
+
+
+def test_check_snippet_without_current_adds_info_unknown():
+    result = check_snippet_against_template(
+        _config("snippet"),
+        _approved_template(require_logging=False, forbid_any_to_any_permit=False),
+    )
+
+    assert [(finding.severity, finding.finding_type) for finding in result.findings] == [
+        ("info", "unknown")
+    ]
+    assert "当前完整配置" in result.findings[0].recommendation
+
+
+def test_check_snippet_with_current_does_not_add_info_unknown():
+    result = check_snippet_against_template(
+        _config("snippet"),
+        _approved_template(require_logging=False, forbid_any_to_any_permit=False),
+        current=_config("current"),
+    )
+
+    assert all(finding.finding_type != "unknown" for finding in result.findings)
+
+
 def _config(
     device_name: str,
     zones: list[str] | None = None,
     address_objects: list[str] | None = None,
     service_objects: list[str] | None = None,
+    policy_rules: list[PolicyRule] | None = None,
 ) -> NormalizedConfig:
     return NormalizedConfig(
         device_profile=DeviceProfile(
@@ -139,7 +282,9 @@ def _config(
         service_objects=[
             ServiceObject(name=name) for name in (["https"] if service_objects is None else service_objects)
         ],
-        policy_rules=[
+        policy_rules=policy_rules
+        if policy_rules is not None
+        else [
             PolicyRule(
                 name="allow_https",
                 action="permit",
@@ -152,4 +297,26 @@ def _config(
             )
         ],
         management_access=[ManagementAccess(protocol="ssh", allowed_sources=["10.0.0.0/24"])],
+    )
+
+
+def _approved_template(
+    required_modules: list[str] | None = None,
+    require_logging: bool = True,
+    forbid_any_to_any_permit: bool = True,
+) -> ConfigTemplate:
+    return ConfigTemplate(
+        template_id="firewall.dmz.border_firewall",
+        standard_zone="dmz",
+        role="border_firewall",
+        status="approved",
+        required_modules=["zones", "address_objects", "service_objects", "policy_rules"]
+        if required_modules is None
+        else required_modules,
+        expected_patterns={
+            "policy_rules": {
+                "require_logging": require_logging,
+                "forbid_any_to_any_permit": forbid_any_to_any_permit,
+            }
+        },
     )
