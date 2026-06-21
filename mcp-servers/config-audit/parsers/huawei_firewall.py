@@ -38,17 +38,28 @@ def parse_huawei_firewall(
 
 def _parse_address_object(block: str) -> AddressObject:
     lines = [line.strip() for line in block.splitlines()]
-    name_match = re.match(r'ip address-set "?([^"]+)"? type object', lines[0])
+    name_match = re.match(r'ip address-set "?([^"]+)"? type (\S+)', lines[0])
     name = clean_name(name_match.group(1)) if name_match else lines[0]
+    raw_type = clean_name(name_match.group(2)) if name_match else "object"
+    object_type = "group" if raw_type == "group" else "ip"
     values: list[str] = []
+    members: list[str] = []
 
     for line in lines[1:]:
         if match := re.match(r"address\s+\S+\s+(\S+)\s+mask\s+(\S+)", line):
             values.append(f"{clean_name(match.group(1))}/{clean_name(match.group(2))}")
         elif match := re.match(r"address\s+\S+\s+range\s+(\S+)\s+(\S+)", line):
             values.append(f"{clean_name(match.group(1))}-{clean_name(match.group(2))}")
+        elif match := re.match(r"address\s+\S+\s+address-set\s+(.+)", line):
+            members.append(clean_name(match.group(1)))
 
-    return AddressObject(name=name, values=values, object_type="ip", raw=block)
+    return AddressObject(
+        name=name,
+        values=values,
+        object_type=object_type,
+        members=normalize_list(members),
+        raw=block,
+    )
 
 
 def _parse_service_object(block: str) -> ServiceObject:

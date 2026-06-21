@@ -66,6 +66,9 @@ def test_parse_huawei_firewall_p0_modules():
         "10.0.0.10/32",
         "10.0.1.1-10.0.1.10",
     ]
+    assert config.address_objects[1].name == "WEB_GROUP"
+    assert config.address_objects[1].object_type == "group"
+    assert config.address_objects[1].members == ["WEB_SERVER", "DB_SERVER"]
     assert config.service_objects[0].name == "HTTPS"
     assert config.policy_rules[0].action == "permit"
     assert config.policy_rules[0].source_objects == ["WEB_CLIENT"]
