@@ -1,0 +1,145 @@
+import re
+
+from core.model import (
+    AddressObject,
+    DeviceProfile,
+    NormalizedConfig,
+    PolicyRule,
+    ServiceObject,
+    Zone,
+)
+from core.normalize import bool_from_text, clean_name, normalize_list
+
+
+def parse_hillstone_firewall(
+    text: str,
+    standard_zone: str,
+    role: str,
+    **profile_kwargs,
+) -> NormalizedConfig:
+    profile = DeviceProfile(
+        vendor="Hillstone",
+        standard_zone=standard_zone,
+        role=role,
+        **profile_kwargs,
+    )
+    config = NormalizedConfig(device_profile=profile)
+
+    for block in _split_hillstone_blocks(text):
+        first_line = block.splitlines()[0].strip()
+        if first_line.startswith("zone "):
+            config.zones.append(_parse_zone(block))
+        elif first_line.startswith("address "):
+            config.address_objects.append(_parse_address_object(block))
+        elif first_line.startswith("service "):
+            config.service_objects.append(_parse_service_object(block))
+        elif first_line.startswith("rule id "):
+            config.policy_rules.append(_parse_policy_rule(block))
+
+    return config
+
+
+def _split_hillstone_blocks(text: str) -> list[str]:
+    blocks: list[str] = []
+    current: list[str] = []
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("zone ", "address ", "service ", "rule id ")) and current:
+            first_line = current[0].strip()
+            if not first_line.startswith("zone "):
+                current.append(line.rstrip())
+                continue
+            blocks.append("\n".join(current).strip())
+            current = []
+
+        current.append(line.rstrip())
+        if stripped == "exit":
+            blocks.append("\n".join(current).strip())
+            current = []
+
+    if current:
+        blocks.append("\n".join(current).strip())
+
+    return [block for block in blocks if block]
+
+
+def _parse_zone(block: str) -> Zone:
+    first_line = block.splitlines()[0].strip()
+    match = re.match(r'zone\s+"([^"]+)"\s+vrouter\s+"([^"]+)"', first_line)
+    if not match:
+        return Zone(name=clean_name(first_line), raw=block)
+    return Zone(name=clean_name(match.group(1)), vrouter=clean_name(match.group(2)), raw=block)
+
+
+def _parse_address_object(block: str) -> AddressObject:
+    lines = [line.strip() for line in block.splitlines()]
+    name = _quoted_name(lines[0])
+    values: list[str] = []
+
+    for line in lines[1:]:
+        if line.startswith("host "):
+            values.append(clean_name(line.removeprefix("host ")))
+        elif line.startswith("ip "):
+            values.append(clean_name(line.removeprefix("ip ")))
+        elif match := re.match(r"range\s+(\S+)\s+(\S+)", line):
+            values.append(f"{clean_name(match.group(1))}-{clean_name(match.group(2))}")
+
+    return AddressObject(name=name, values=values, object_type="ip", raw=block)
+
+
+def _parse_service_object(block: str) -> ServiceObject:
+    lines = [line.strip() for line in block.splitlines()]
+    name = _quoted_name(lines[0])
+    protocol = ""
+    ports: list[str] = []
+
+    for line in lines[1:]:
+        if match := re.match(r"(\S+)\s+dst-port\s+(\S+)", line):
+            protocol = clean_name(match.group(1))
+            ports.append(clean_name(match.group(2)))
+
+    return ServiceObject(name=name, protocol=protocol, ports=ports, raw=block)
+
+
+def _parse_policy_rule(block: str) -> PolicyRule:
+    lines = [line.strip() for line in block.splitlines()]
+    name = clean_name(lines[0].removeprefix("rule id "))
+    fields: dict[str, list[str]] = {}
+
+    for line in lines[1:]:
+        key, _, value = line.partition(" ")
+        fields.setdefault(key, []).append(value)
+
+    if "name" in fields:
+        name = clean_name(_first(fields, "name"))
+
+    source_objects: list[str] = []
+    for key in ("src-addr", "src-ip", "src-range"):
+        source_objects.extend(fields.get(key, []))
+    destination_objects: list[str] = []
+    for key in ("dst-addr", "dst-ip", "dst-range"):
+        destination_objects.extend(fields.get(key, []))
+
+    return PolicyRule(
+        name=name,
+        action=clean_name(_first(fields, "action")),
+        source_zones=normalize_list(fields.get("src-zone")),
+        destination_zones=normalize_list(fields.get("dst-zone")),
+        source_objects=normalize_list(source_objects),
+        destination_objects=normalize_list(destination_objects),
+        services=normalize_list(fields.get("service")),
+        logging=bool_from_text(_first(fields, "log")),
+        enabled="disable" not in fields,
+        raw=block,
+    )
+
+
+def _quoted_name(line: str) -> str:
+    match = re.search(r'"([^"]+)"', line)
+    return clean_name(match.group(1)) if match else clean_name(line)
+
+
+def _first(fields: dict[str, list[str]], key: str) -> str:
+    values = fields.get(key, [])
+    return values[0] if values else ""
