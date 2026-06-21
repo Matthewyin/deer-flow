@@ -89,7 +89,7 @@ def export_report(
 
 
 def _create_report_dir(output_dir: str | Path) -> Path:
-    root = Path(output_dir)
+    root = _resolve_output_root(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     for _ in range(10):
         name = f"config-audit-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"
@@ -100,6 +100,15 @@ def _create_report_dir(output_dir: str | Path) -> Path:
         except FileExistsError:
             continue
     raise FileExistsError("无法创建唯一的配置审查报告目录")
+
+
+def _resolve_output_root(output_dir: str | Path) -> Path:
+    root = Path(output_dir)
+    if root.name == "config-audit" and root.parent.name == "mcp-outputs":
+        return root
+    if root.name == "mcp-outputs":
+        return root / "config-audit"
+    return root / "mcp-outputs" / "config-audit"
 
 
 def _present_filepaths(artifact_id: str) -> list[str]:

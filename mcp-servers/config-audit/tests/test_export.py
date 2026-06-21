@@ -48,20 +48,18 @@ def test_export_report_writes_excel_markdown_and_present_paths(tmp_path):
 
     excel_path = Path(paths.excel_path)
     markdown_path = Path(paths.markdown_path)
+    output_root = tmp_path / "mcp-outputs"
 
     assert excel_path.exists()
     assert markdown_path.exists()
-    assert all(
-        path.startswith("/mnt/user-data/outputs/.mcp/config-audit/")
-        for path in paths.present_filepaths
-    )
-    assert paths.present_filepaths[0].endswith("/配置审查事实表.xlsx")
-    assert paths.present_filepaths[1].endswith("/配置审查报告.md")
-    artifact_ids = {
-        Path(path).parts[-2]
-        for path in paths.present_filepaths
-    }
-    assert artifact_ids == {excel_path.parent.name}
+    excel_relative = excel_path.relative_to(output_root).as_posix()
+    markdown_relative = markdown_path.relative_to(output_root).as_posix()
+    assert excel_relative == f"config-audit/{excel_path.parent.name}/配置审查事实表.xlsx"
+    assert markdown_relative == f"config-audit/{excel_path.parent.name}/配置审查报告.md"
+    assert paths.present_filepaths == [
+        f"/mnt/user-data/outputs/.mcp/{excel_relative}",
+        f"/mnt/user-data/outputs/.mcp/{markdown_relative}",
+    ]
 
     workbook = load_workbook(excel_path)
     assert {
@@ -110,6 +108,29 @@ def test_export_report_writes_excel_markdown_and_present_paths(tmp_path):
     assert "# 配置审查报告" in markdown
     assert "本次分析由 Agent 汇总，建议优先处理高危策略。" in markdown
     assert "收敛源、目的和服务范围，避免 any 到 any 放行" in markdown
+
+
+def test_export_report_normalizes_output_root_variants(tmp_path):
+    config = _config()
+    compare = CompareResult(template_id="firewall.dmz.border_firewall")
+
+    plain_paths = export_report(config, compare, tmp_path / "plain")
+    mcp_paths = export_report(config, compare, tmp_path / "middle" / "mcp-outputs")
+    server_paths = export_report(
+        config,
+        compare,
+        tmp_path / "direct" / "mcp-outputs" / "config-audit",
+    )
+
+    assert Path(plain_paths.excel_path).is_relative_to(
+        tmp_path / "plain" / "mcp-outputs" / "config-audit"
+    )
+    assert Path(mcp_paths.excel_path).is_relative_to(
+        tmp_path / "middle" / "mcp-outputs" / "config-audit"
+    )
+    assert Path(server_paths.excel_path).is_relative_to(
+        tmp_path / "direct" / "mcp-outputs" / "config-audit"
+    )
 
 
 def _config() -> NormalizedConfig:
