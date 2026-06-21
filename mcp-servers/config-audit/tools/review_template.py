@@ -2,17 +2,17 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
-from fastmcp import FastMCP
 
 from core.model import ConfigTemplate
 from core.template import save_approved_template
 
 
-DEFAULT_DATA_DIR = "backend/.deer-flow/config-audit"
+DEFAULT_DATA_DIR = ".deer-flow/config-audit"
 
 
-def register(mcp: FastMCP):
+def register(mcp: Any):
     @mcp.tool()
     def config_audit_review_template(
         template: dict,

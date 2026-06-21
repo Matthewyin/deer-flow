@@ -1,12 +1,12 @@
 """配置片段检查 MCP 工具。"""
 
-from fastmcp import FastMCP
+from typing import Any
 
 from core.compare import check_snippet_against_template
 from core.model import ConfigTemplate, NormalizedConfig
 
 
-def register(mcp: FastMCP):
+def register(mcp: Any):
     @mcp.tool()
     def config_audit_check_snippet(
         snippet_config: dict,

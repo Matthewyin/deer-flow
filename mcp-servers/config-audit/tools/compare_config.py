@@ -1,12 +1,12 @@
 """配置对比 MCP 工具。"""
 
-from fastmcp import FastMCP
+from typing import Any
 
 from core.compare import compare_config_to_template
 from core.model import ConfigTemplate, NormalizedConfig
 
 
-def register(mcp: FastMCP):
+def register(mcp: Any):
     @mcp.tool()
     def config_audit_compare_config(
         config: dict,

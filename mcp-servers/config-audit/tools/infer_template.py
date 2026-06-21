@@ -1,12 +1,12 @@
 """模板反推 MCP 工具。"""
 
-from fastmcp import FastMCP
+from typing import Any
 
 from core.model import NormalizedConfig
 from core.template import infer_template
 
 
-def register(mcp: FastMCP):
+def register(mcp: Any):
     @mcp.tool()
     def config_audit_infer_template(
         configs: list[dict],

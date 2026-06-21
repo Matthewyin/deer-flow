@@ -1,17 +1,17 @@
 """配置审查报告导出 MCP 工具。"""
 
 import os
+from typing import Any
 
-from fastmcp import FastMCP
 
 from core.export import export_report
 from core.model import CompareResult, NormalizedConfig
 
 
-DEFAULT_OUTPUT_DIR = "backend/.deer-flow/mcp-outputs/config-audit"
+DEFAULT_OUTPUT_DIR = ".deer-flow/mcp-outputs/config-audit"
 
 
-def register(mcp: FastMCP):
+def register(mcp: Any):
     @mcp.tool()
     def config_audit_export_report(
         config: dict,
