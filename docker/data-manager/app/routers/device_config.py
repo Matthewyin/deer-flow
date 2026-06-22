@@ -1,13 +1,19 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app.services.device_config_service import (
     create_import_batch,
+    delete_import_batches,
     get_options,
     list_import_batches,
 )
 
 
 router = APIRouter(tags=["device-config"])
+
+
+class DeleteDeviceConfigImportsRequest(BaseModel):
+    import_ids: list[str]
 
 
 @router.get("/api/device-configs/options")
@@ -19,6 +25,14 @@ async def device_config_options():
 async def device_config_imports(vendor: str = "", device_type: str = ""):
     try:
         return list_import_batches(vendor=vendor, device_type=device_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/api/device-configs/delete")
+async def device_config_delete(req: DeleteDeviceConfigImportsRequest):
+    try:
+        return delete_import_batches(req.import_ids)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
