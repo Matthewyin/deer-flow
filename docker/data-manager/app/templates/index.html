@@ -307,8 +307,13 @@ th { color: #888; font-weight: 600; }
     </div>
     <div class="card">
       <h2>已导入批次</h2>
+      <div style="margin-bottom:8px;">
+        <button class="btn" onclick="dcSelectAll()" style="font-size:12px;padding:4px 10px;">全选</button>
+        <button class="btn" onclick="dcSelectNone()" style="font-size:12px;padding:4px 10px;">取消全选</button>
+        <button class="btn" onclick="dcDeleteSelected()" style="font-size:12px;padding:4px 10px;background:#e74c3c;color:#fff;border-color:#c0392b;">删除选中</button>
+      </div>
       <table>
-        <thead><tr><th>导入批次</th><th>厂商</th><th>设备类型</th><th>文件数</th><th>目录</th><th>导入时间</th></tr></thead>
+        <thead><tr><th style="width:30px;"></th><th>导入批次</th><th>厂商</th><th>设备类型</th><th>文件数</th><th>目录</th><th>导入时间</th><th></th></tr></thead>
         <tbody id="dc-imports"></tbody>
       </table>
     </div>
@@ -957,7 +962,7 @@ async function dcLoad() {
     tbody.innerHTML = '';
     const rows = d.imports || [];
     if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="color:#888;">暂无导入批次</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="color:#888;">暂无导入批次</td></tr>';
       return;
     }
     rows.forEach(item => {
@@ -965,9 +970,12 @@ async function dcLoad() {
       const batch = item.batch_name
         ? `${dcEscape(item.batch_name)}<br><span class="muted">${dcEscape(item.import_id)}</span>`
         : dcEscape(item.import_id);
-      tr.innerHTML = `<td>${batch}</td><td>${dcEscape(item.vendor_label || item.vendor)}</td>
+      tr.innerHTML = `<td><input type="checkbox" class="dc-import-cb" value="${dcEscape(item.import_id)}"></td>
+        <td>${batch}</td><td>${dcEscape(item.vendor_label || item.vendor)}</td>
         <td>${dcEscape(item.device_type_label || item.device_type)}</td><td>${item.file_count || 0}</td>
-        <td class="muted">${dcEscape(item.storage_dir || '-')}</td><td>${item.created_at ? fmtTime(item.created_at) : '-'}</td>`;
+        <td class="muted">${dcEscape(item.storage_dir || '-')}</td><td>${item.created_at ? fmtTime(item.created_at) : '-'}</td>
+        <td><button class="btn btn-danger btn-sm">删除</button></td>`;
+      tr.querySelector('button').onclick = () => dcDeleteImports([item.import_id]);
       tbody.appendChild(tr);
     });
   } catch (e) {
@@ -1005,6 +1013,42 @@ async function dcUpload() {
   } finally {
     btn.disabled = false;
     btn.textContent = '批量导入';
+  }
+}
+
+function dcSelectAll() {
+  document.querySelectorAll('.dc-import-cb').forEach(cb => cb.checked = true);
+}
+
+function dcSelectNone() {
+  document.querySelectorAll('.dc-import-cb').forEach(cb => cb.checked = false);
+}
+
+async function dcDeleteSelected() {
+  const importIds = [...document.querySelectorAll('.dc-import-cb:checked')].map(cb => cb.value);
+  if (importIds.length === 0) { showMsg('请先选择要删除的导入批次', true, 'DC_NO_SELECTION'); return; }
+  await dcDeleteImports(importIds);
+}
+
+async function dcDeleteImports(importIds) {
+  if (!confirm(`确定删除 ${importIds.length} 个导入批次及其配置文件？`)) return;
+  try {
+    const r = await fetch(API + '/api/device-configs/delete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({import_ids: importIds})
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      showMsg('删除失败：' + (d.detail || JSON.stringify(d)), true, 'DC_DELETE_ERROR');
+      return;
+    }
+    const msg = `已删除 ${d.deleted.length} 个导入批次`
+      + (d.not_found.length ? `，${d.not_found.length} 个未找到` : '')
+      + (d.errors.length ? `，${d.errors.length} 个删除失败` : '');
+    showMsg(msg, d.errors.length > 0, d.errors.length ? 'DC_DELETE_PARTIAL' : undefined);
+    dcLoad();
+  } catch (e) {
+    showMsg('删除失败：' + e.message, true, 'DC_NETWORK_ERROR');
   }
 }
 

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -159,3 +160,41 @@ def list_import_batches(vendor: str = "", device_type: str = "") -> dict:
     if device_type_key:
         imports = [item for item in imports if item.get("device_type") == device_type_key]
     return {"base_dir": str(BASE_DIR), "total": len(imports), "imports": imports}
+
+
+def delete_import_batches(import_ids: list[str]) -> dict:
+    ids = [item.strip() for item in import_ids if item.strip()]
+    if not ids:
+        raise ValueError("未指定要删除的导入批次")
+
+    index = _load_index()
+    by_id = {item.get("import_id"): item for item in index["imports"]}
+    deleted = []
+    not_found = []
+    errors = []
+
+    for import_id in ids:
+        item = by_id.get(import_id)
+        if not item:
+            not_found.append(import_id)
+            continue
+        storage_dir = Path(item.get("storage_dir", ""))
+        try:
+            storage_root = BASE_DIR.resolve()
+            target_dir = storage_dir.resolve()
+            if target_dir != storage_root and storage_root in target_dir.parents and target_dir.exists():
+                shutil.rmtree(target_dir)
+            elif target_dir.exists():
+                raise ValueError("批次目录不在设备配置导入目录下")
+            deleted.append(import_id)
+        except (OSError, ValueError) as e:
+            errors.append({"import_id": import_id, "error": str(e)})
+
+    if deleted:
+        deleted_set = set(deleted)
+        index["imports"] = [
+            item for item in index["imports"] if item.get("import_id") not in deleted_set
+        ]
+        _save_index(index)
+
+    return {"deleted": deleted, "not_found": not_found, "errors": errors}
