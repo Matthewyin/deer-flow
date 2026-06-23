@@ -90,9 +90,11 @@ http://localhost:2026/data-manager/
 Agent 侧建议流程：
 
 1. 调用 `config_audit_list_import_batches` 查看 data-manager 已导入批次。
-2. 调用 `config_audit_parse_import_batch` 解析目标批次。
-3. 用解析结果调用 `config_audit_infer_template` 生成 draft 模板。
+2. 调用 `config_audit_parse_import_batch` 获取目标批次摘要。默认不要返回完整配置对象，避免大批量配置进入对话历史。
+3. 需要从导入批次反推模板时，调用 `config_audit_infer_template_from_import_batch` 生成 draft 模板。
 4. 人工复核后，再调用模板审核、配置对比或脚本片段检查工具。
+
+注意：`config_audit_parse_import_batch` 支持 `include_full_configs=true`，但只应在少量小配置调试时使用。批量防火墙配置解析会产生很大的结构化结果，直接写入聊天历史会拖慢 history、threads/search 和前端渲染。
 
 data-manager 代码变更后需要重建容器：
 
