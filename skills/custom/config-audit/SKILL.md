@@ -25,8 +25,9 @@ description: >
 
 1. 调用 `config_audit_list_import_batches` 查看可用批次。
 2. 让用户确认要处理的 `import_id`，或按用户指定的厂商、设备类型、批次名称筛选。
-3. 调用 `config_audit_parse_import_batch` 解析该批次。
-4. 对解析结果继续执行完整配置梳理、模板反推或标准化检查。
+3. 调用 `config_audit_parse_import_batch` 获取批次摘要，不要请求完整配置对象。
+4. 需要反推模板时，调用 `config_audit_infer_template_from_import_batch`，不要先把完整批次解析结果放入对话。
+5. 对解析摘要、模板草稿、标准化检查结果继续做 LLM 分析。
 
 当前批次解析只支持 H3C、Huawei、Hillstone 防火墙。F5、深信服、路由器、交换机、负载均衡只作为配置资产保存，不能声称已完成解析。
 
