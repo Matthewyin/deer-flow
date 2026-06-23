@@ -18,11 +18,11 @@ def _extract_metric(filepath: str, region: str) -> dict | None:
         logger.warning(f"Failed to parse {filepath}: {e}")
         return None
 
-    icmp_summary = data.get("multi_ip_icmp", {}).get("summary", {})
-    tcp_summary = data.get("multi_ip_tcp", {}).get("summary", {})
-    tls_info = data.get("tls_info", {})
-    dns = data.get("dns_resolution", {})
-    mtr_summary = data.get("multi_ip_network_path", {}).get("summary", {})
+    icmp_summary = (data.get("multi_ip_icmp") or {}).get("summary") or {}
+    tcp_summary = (data.get("multi_ip_tcp") or {}).get("summary") or {}
+    tls_info = data.get("tls_info") or {}
+    dns = data.get("dns_resolution") or {}
+    mtr_summary = (data.get("multi_ip_network_path") or {}).get("summary") or {}
 
     return {
         "region": region,
@@ -39,13 +39,13 @@ def _extract_metric(filepath: str, region: str) -> dict | None:
         "tls_handshake_ms": tls_info.get("handshake_time_ms"),
         "tls_protocol": tls_info.get("protocol_version"),
         "mutual_tls": 1
-        if tls_info.get("mutual_tls_info", {}).get("requires_client_cert")
+        if (tls_info.get("mutual_tls_info") or {}).get("requires_client_cert")
         else 0,
         "dns_resolution_ms": dns.get("resolution_time_ms"),
-        "resolved_ips": ",".join(dns.get("resolved_ips", [])),
+        "resolved_ips": ",".join(dns.get("resolved_ips") or []),
         "mtr_hops": mtr_summary.get("avg_hops"),
         "mtr_avg_latency": mtr_summary.get("avg_latency_ms"),
-        "mtr_common_hops": ",".join(mtr_summary.get("common_hops", [])),
+        "mtr_common_hops": ",".join(mtr_summary.get("common_hops") or []),
         "raw_json_path": filepath,
     }
 
